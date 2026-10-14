@@ -111,6 +111,15 @@ export default function Drivers() {
 
   const openEditModal = (d) => {
     setEditDriver(d);
+    // Ensure license_expiry is always in YYYY-MM-DD format for the date input
+    let licenseExpiry = d.license_expiry || '';
+    if (licenseExpiry && licenseExpiry.includes('/')) {
+      // Convert DD/MM/YYYY or MM/DD/YYYY to YYYY-MM-DD
+      const parts = licenseExpiry.split('/');
+      if (parts.length === 3) {
+        licenseExpiry = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    }
     setFormData({
       username: d.username || '',
       first_name: d.first_name || d.full_name?.split(' ')[0] || '',
@@ -119,7 +128,7 @@ export default function Drivers() {
       phone_number: d.phone_number || '',
       driver_type: d.driver_type,
       license_number: d.license_number || '',
-      license_expiry: d.license_expiry || '',
+      license_expiry: licenseExpiry,
       daily_rent_amount: d.daily_rent_amount || '1200.00',
       assigned_vehicle: d.assigned_vehicle || '',
       upi_id: d.upi_id || '',
@@ -204,7 +213,7 @@ export default function Drivers() {
     setHistoryRecords([]);
     try {
       const res = await fleetService.getCalculations({
-        driver: driver.id,
+        driver: driver.user_id,
       });
       const data = res.data?.results || res.data || [];
       setHistoryRecords(data);
@@ -566,6 +575,32 @@ export default function Drivers() {
                 </div>
               </div>
 
+              {/* License Expiry & Daily Rent Amount */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">License Expiry Date</label>
+                  <input
+                    type="date"
+                    value={formData.license_expiry || ''}
+                    onChange={(e) => setFormData({ ...formData, license_expiry: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+                {formData.driver_type === 'DAILY_RENT' && (
+                  <div>
+                    <label className="font-bold text-slate-700 block mb-1">Daily Rent Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="50"
+                      placeholder="1200"
+                      value={formData.daily_rent_amount}
+                      onChange={(e) => setFormData({ ...formData, daily_rent_amount: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-medium text-slate-900 focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Assigned Vehicle */}
               <div>
                 <label className="font-bold text-slate-700 block mb-1">Assigned Vehicle</label>
@@ -583,7 +618,7 @@ export default function Drivers() {
                 </select>
               </div>
 
-              {/* UPI ID */}
+              {/* UPI ID & Bank Details */}
               <div>
                 <label className="font-bold text-slate-700 block mb-1">UPI ID for Payouts</label>
                 <input
@@ -593,6 +628,53 @@ export default function Drivers() {
                   onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Bank Account No.</label>
+                  <input
+                    type="text"
+                    placeholder="Account number"
+                    value={formData.bank_account_number}
+                    onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Bank IFSC Code</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. SBIN0001234"
+                    value={formData.bank_ifsc_code}
+                    onChange={(e) => setFormData({ ...formData, bank_ifsc_code: e.target.value.toUpperCase() })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono uppercase"
+                  />
+                </div>
+              </div>
+
+              {/* Emergency Contact */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Emergency Contact Name</label>
+                  <input
+                    type="text"
+                    placeholder="Contact name"
+                    value={formData.emergency_contact_name}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact_name: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Emergency Contact Phone</label>
+                  <input
+                    type="text"
+                    placeholder="+91 9876543210"
+                    value={formData.emergency_contact_phone}
+                    onChange={(e) => setFormData({ ...formData, emergency_contact_phone: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5"
+                  />
+                </div>
               </div>
 
               {/* Driver Active & Eligible */}

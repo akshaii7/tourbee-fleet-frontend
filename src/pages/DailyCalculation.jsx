@@ -201,7 +201,7 @@ export default function DailyCalculation() {
         vehicle: formData.vehicle,
         date: formData.date,
         payment_mode: paymentMode,
-        working_day: workingDayType,
+        working_day_type: workingDayType,
         total_uber_earnings: formData.total_uber_earnings || 0,
         passenger_cash_collected: formData.passenger_cash_collected || 0,
         cng_expense: formData.cng_expense || 0,
@@ -678,7 +678,7 @@ export default function DailyCalculation() {
                     <td className="px-4 py-3.5">
                       {isFixed ? (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                          Fixed Rent ({c.working_day === 'HALF_DAY' ? 'Half Day' : 'Full Day'})
+                          Fixed Rent ({c.working_day_type === 'HALF_DAY' ? 'Half Day' : 'Full Day'})
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
