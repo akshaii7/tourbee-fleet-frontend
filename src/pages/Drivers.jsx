@@ -153,6 +153,10 @@ export default function Drivers() {
 
     try {
       const payload = { ...formData };
+      if (!payload.email || payload.email.trim() === '') {
+        const cleanUser = (payload.username || 'driver').replace(/[^a-zA-Z0-9]/g, '');
+        payload.email = `${cleanUser || 'driver'}_${Date.now()}@tourbee.in`;
+      }
       if (!payload.assigned_vehicle) payload.assigned_vehicle = null;
       if (!payload.license_expiry) payload.license_expiry = null;
       if (!payload.emergency_contact_phone) payload.emergency_contact_phone = null;
