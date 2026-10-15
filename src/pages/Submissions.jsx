@@ -769,25 +769,25 @@ export default function Submissions() {
                     <td className="py-3 px-4 text-right font-black text-sm text-slate-900">{formatINR(c.final_gpay_amount || c.J)}</td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center space-x-1">
-                        {c.cng_bill_url ? (
+                        {(c.cng_bill_url || c.cng_bill_file) ? (
                           <button
-                            onClick={() => setPreviewDoc({ title: 'CNG Bill', url: c.cng_bill_url })}
+                            onClick={() => setPreviewDoc({ title: 'CNG Bill', url: c.cng_bill_url || c.cng_bill_file })}
                             className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200"
                             title="View CNG Bill"
                           >
                             CNG
                           </button>
                         ) : null}
-                        {c.uber_screenshot_url ? (
+                        {(c.uber_screenshot_url || c.uber_screenshot_file) ? (
                           <button
-                            onClick={() => setPreviewDoc({ title: 'Uber Screenshot', url: c.uber_screenshot_url })}
+                            onClick={() => setPreviewDoc({ title: 'Uber Screenshot', url: c.uber_screenshot_url || c.uber_screenshot_file })}
                             className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200"
                             title="View Uber Screenshot"
                           >
                             Proof
                           </button>
                         ) : null}
-                        {!c.cng_bill_url && !c.uber_screenshot_url && <span className="text-slate-300">—</span>}
+                        {!c.cng_bill_url && !c.cng_bill_file && !c.uber_screenshot_url && !c.uber_screenshot_file && <span className="text-slate-300">—</span>}
                       </div>
                     </td>
                     <td className="py-3 px-4 text-center whitespace-nowrap">
@@ -842,12 +842,28 @@ export default function Submissions() {
                 ✕
               </button>
             </div>
-            <div className="p-4 flex items-center justify-center bg-slate-50 min-h-[250px]">
-              {previewDoc.url.match(/\.(jpeg|jpg|gif|png|webp)/i) ? (
-                <img src={previewDoc.url} alt="Proof" className="max-h-[70vh] rounded-lg object-contain" />
-              ) : (
-                <iframe src={previewDoc.url} title="Document" className="w-full h-80 border-0" />
-              )}
+            <div className="p-4 flex flex-col items-center justify-center bg-slate-50 min-h-[250px]">
+              <img
+                src={previewDoc.url}
+                alt="Proof"
+                className="max-h-[70vh] rounded-lg object-contain shadow-sm"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  const fallback = e.target.nextElementSibling;
+                  if (fallback) fallback.style.display = 'block';
+                }}
+              />
+              <div style={{ display: 'none' }} className="p-6 text-center text-slate-500">
+                <p className="text-xs font-semibold text-slate-600 mb-2">Image preview unavailable in embedded viewer</p>
+                <a
+                  href={previewDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+                >
+                  <span>Click here to open in new tab</span>
+                </a>
+              </div>
             </div>
             <div className="p-3 bg-slate-100 text-right">
               <a
