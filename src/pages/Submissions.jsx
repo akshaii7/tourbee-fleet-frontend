@@ -77,28 +77,62 @@ export default function Submissions() {
       ];
       if (isAdmin) {
         promises.push(driverService.getAll());
+      } else {
+        // For drivers, also fetch their dashboard to get assigned vehicle
+        promises.push(fleetService.getFleetDashboard());
       }
-      const [vRes, cRes, dRes] = await Promise.all(promises);
+      const [vRes, cRes, dOrDashRes] = await Promise.all(promises);
       const vList = vRes.data.results || vRes.data;
       setVehicles(vList);
       setCalculations(cRes.data.results || cRes.data);
-      if (dRes) setDrivers(dRes.data.results || dRes.data);
 
-      // Default vehicle selection
-      if (vList.length > 0) {
-        setFormData((prev) => ({ ...prev, vehicle: vList[0].id }));
-      }
-      if (isAdmin && dRes && (dRes.data.results || dRes.data).length > 0) {
-        const dlist = dRes.data.results || dRes.data;
-        setFormData((prev) => ({ ...prev, driver: dlist[0].id }));
+      if (isAdmin) {
+        if (dOrDashRes) setDrivers(dOrDashRes.data.results || dOrDashRes.data);
+        // Default vehicle selection for admin
+        if (vList.length > 0) {
+          setFormData((prev) => ({ ...prev, vehicle: vList[0].id }));
+        }
+        const dlist = dOrDashRes?.data?.results || dOrDashRes?.data || [];
+        if (dlist.length > 0) {
+          const firstDriver = dlist[0];
+          const driverAssignedVehicle = firstDriver.assigned_vehicle;
+          const matchVeh = driverAssignedVehicle
+            ? vList.find(v => v.id === driverAssignedVehicle || v.registration_number === driverAssignedVehicle)
+            : null;
+          setFormData((prev) => ({
+            ...prev,
+            driver: firstDriver.id,
+            vehicle: matchVeh?.id || (vList[0]?.id || ''),
+          }));
+        }
+      } else {
+        // Pre-select driver's assigned vehicle from dashboard
+        const dashData = dOrDashRes?.data;
+        let assignedVehicleId = '';
+        if (dashData?.assigned_vehicle_id) {
+          assignedVehicleId = dashData.assigned_vehicle_id;
+        } else if (vList.length > 0) {
+          assignedVehicleId = vList[0].id;
+        }
+        setFormData((prev) => ({ ...prev, vehicle: assignedVehicleId }));
       }
     } catch (err) {
       console.error(err);
+      // Try basic vehicle load even if dashboard fails
+      try {
+        const vRes = await fleetService.getFleetVehicles();
+        const vList = vRes.data.results || vRes.data;
+        setVehicles(vList);
+        if (vList.length > 0) {
+          setFormData((prev) => ({ ...prev, vehicle: vList[0].id }));
+        }
+      } catch (_) {}
       setError('Failed to load fleet data.');
     } finally {
       setLoading(false);
     }
   };
+
 
   // Recalculate live breakdown on every keystroke following exact 8-step formula
   useEffect(() => {
