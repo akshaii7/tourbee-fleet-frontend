@@ -21,18 +21,70 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor: handle 401s
+// Response interceptor: automatically refresh token or redirect on failure
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response && error.response.status === 401) {
-      // Token expired or invalid
-      const currentPath = window.location.pathname;
-      if (currentPath !== '/login') {
-        localStorage.removeItem('tourbee_access_token');
-        localStorage.removeItem('tourbee_refresh_token');
-        localStorage.removeItem('tourbee_user');
-        window.location.href = '/login';
+    const originalRequest = error.config;
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      if (originalRequest.url.includes('/auth/login/') || originalRequest.url.includes('/auth/refresh/')) {
+        return Promise.reject(error);
+      }
+
+      const refreshToken = localStorage.getItem('tourbee_refresh_token');
+      if (!refreshToken) {
+        if (window.location.pathname !== '/login') {
+          authService.logout();
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const res = await axios.post(`${API_BASE_URL}/auth/refresh/`, { refresh: refreshToken });
+        const newAccess = res.data.access;
+        localStorage.setItem('tourbee_access_token', newAccess);
+        api.defaults.headers.common.Authorization = `Bearer ${newAccess}`;
+        processQueue(null, newAccess);
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        return api(originalRequest);
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        authService.logout();
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
       }
     }
     return Promise.reject(error);
