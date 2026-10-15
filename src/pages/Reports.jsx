@@ -22,6 +22,7 @@ export default function Reports() {
 
   const [startDate, setStartDate] = useState(firstOfMonth);
   const [endDate, setEndDate] = useState(today);
+  const [exportType, setExportType] = useState('earnings');
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,8 +48,8 @@ export default function Reports() {
     }
   };
 
-  const handleExport = (type, format) => {
-    const url = reportService.getExportUrl(type, format, startDate, endDate);
+  const handleExport = (format) => {
+    const url = reportService.getExportUrl(exportType, format, startDate, endDate);
     window.open(url, '_blank');
   };
 
@@ -96,17 +97,27 @@ export default function Reports() {
             />
           </div>
 
+          <select
+            value={exportType}
+            onChange={(e) => setExportType(e.target.value)}
+            className="bg-white px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 shadow-sm focus:outline-none cursor-pointer"
+          >
+            <option value="earnings">Earnings & Calculations</option>
+            <option value="expenses">Operating & Fuel Expenses</option>
+            <option value="maintenance">Maintenance Records</option>
+          </select>
+
           <div className="flex items-center space-x-1.5">
             <button
-              onClick={() => handleExport('earnings', 'excel')}
-              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition-all"
+              onClick={() => handleExport('excel')}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Export Excel</span>
             </button>
             <button
-              onClick={() => handleExport('earnings', 'csv')}
-              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all"
+              onClick={() => handleExport('csv')}
+              className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all active:scale-95"
             >
               <Download className="w-3.5 h-3.5" />
               <span>Export CSV</span>
@@ -134,7 +145,7 @@ export default function Reports() {
           <div className="text-right">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Inflow</span>
             <span className="text-xl font-extrabold text-emerald-800">
-              {formatINR(summary.gross_uber_earnings + summary.rent_revenue)}
+              {formatINR((Number(summary.gross_uber_earnings) || 0) + (Number(summary.rent_revenue) || 0))}
             </span>
           </div>
         </div>
@@ -233,6 +244,50 @@ export default function Reports() {
                   <td className="px-5 py-4 text-rose-600">{formatINR(v.maintenance_cost)}</td>
                   <td className="px-5 py-4 font-extrabold text-emerald-700 text-sm">
                     {formatINR(v.net_fleet_contribution)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Driver Performance & Earnings Breakdown */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <h3 className="font-bold text-slate-900 text-base">Driver Performance & Earnings Breakdown</h3>
+          <span className="text-xs text-slate-400">{drivers.length} registered drivers</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-600">
+            <thead className="bg-slate-50/80 text-slate-400 uppercase tracking-wider font-bold border-b border-slate-200 text-[10px]">
+              <tr>
+                <th className="px-5 py-3.5">Driver Name</th>
+                <th className="px-5 py-3.5">Payment Mode</th>
+                <th className="px-5 py-3.5">Assigned Vehicle</th>
+                <th className="px-5 py-3.5">Submissions / Trips</th>
+                <th className="px-5 py-3.5">Gross Revenue</th>
+                <th className="px-5 py-3.5">Expenses & CNG</th>
+                <th className="px-5 py-3.5 font-bold text-slate-900">50% Salary / Rent Due</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 font-medium">
+              {drivers.map((d) => (
+                <tr key={d.id} className="hover:bg-slate-50/70 transition-colors">
+                  <td className="px-5 py-4 font-bold text-slate-900">{d.name}</td>
+                  <td className="px-5 py-4">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      d.driver_type === 'DAILY_RENT' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {d.driver_type === 'DAILY_RENT' ? 'Fixed Daily Rent' : '50% Profit Share'}
+                    </span>
+                  </td>
+                  <td className="px-5 py-4 font-mono font-semibold text-slate-800">{d.vehicle || 'None'}</td>
+                  <td className="px-5 py-4">{d.trips || 0} days</td>
+                  <td className="px-5 py-4 font-bold text-slate-900">{formatINR(d.gross_earnings)}</td>
+                  <td className="px-5 py-4 text-slate-700">{formatINR(d.expenses)}</td>
+                  <td className="px-5 py-4 font-extrabold text-emerald-700 text-sm">
+                    {d.driver_type === 'DAILY_RENT' ? formatINR(d.rent_due) : formatINR(d.driver_salary)}
                   </td>
                 </tr>
               ))}

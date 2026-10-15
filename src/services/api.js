@@ -135,9 +135,11 @@ export const reportService = {
   getDashboardMetrics: () => api.get('/reports/dashboard/'),
   getFinancialReport: (params) => api.get('/reports/financial/', { params }),
   getExportUrl: (type, format, startDate, endDate) => {
-    let url = `/api/reports/export/?type=${type}&format=${format}`;
+    const token = localStorage.getItem('tourbee_access_token');
+    let url = `${API_BASE_URL}/reports/export/?type=${type}&format=${format}`;
     if (startDate) url += `&start_date=${startDate}`;
     if (endDate) url += `&end_date=${endDate}`;
+    if (token) url += `&token=${token}`;
     return url;
   },
 };
