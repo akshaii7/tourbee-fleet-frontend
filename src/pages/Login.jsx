@@ -33,7 +33,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(username, password);
+      await login(username.trim(), password.trim());
       navigate('/dashboard');
     } catch (err) {
       console.error(err);
@@ -41,6 +41,13 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fillAdminCredentials = () => {
+    setLoginRole('ADMIN');
+    setUsername('admin');
+    setPassword('TourBee@2026');
+    setError('');
   };
 
   return (
@@ -109,6 +116,9 @@ export default function Login() {
                 <input
                   type="text"
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-slate-800/80 border border-slate-700/80 text-white rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
@@ -126,6 +136,9 @@ export default function Login() {
                 <input
                   type="password"
                   required
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-slate-800/80 border border-slate-700/80 text-white rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
@@ -149,6 +162,19 @@ export default function Login() {
               )}
             </button>
           </form>
+
+          {loginRole === 'ADMIN' && (
+            <div className="mt-4 pt-4 border-t border-slate-800/80 text-center">
+              <button
+                type="button"
+                onClick={fillAdminCredentials}
+                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors inline-flex items-center space-x-1.5 py-1.5 px-3 rounded-lg bg-emerald-950/40 border border-emerald-800/50 hover:bg-emerald-900/40"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>One-Click: Fill Admin Credentials</span>
+              </button>
+            </div>
+          )}
 
         </div>
 
