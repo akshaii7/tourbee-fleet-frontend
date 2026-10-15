@@ -497,6 +497,7 @@ export default function Dashboard() {
                           <span className="font-black text-sm text-slate-900">
                             {formatINR(sub.final_gpay_amount || sub.J)}
                           </span>
+                        </td>
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           <div className="flex items-center justify-center space-x-1.5">
                             {(sub.cng_bill_url || sub.cng_bill_file) ? (

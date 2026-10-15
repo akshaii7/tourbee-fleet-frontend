@@ -58,8 +58,7 @@ export default function DailyCalculation() {
     profit_amount: '0.00',
     driver_salary: '0.00',
     tourbee_share: '0.00',
-    amount_after_wallet_adjustment: '0.00',
-    amount_after_refund: '0.00',
+    amount_after_wallet: '0.00',
     final_gpay_amount: '0.00',
     rent_due: '0.00',
   });
@@ -145,9 +144,9 @@ export default function DailyCalculation() {
         const profit = uber - cng - exp;
         const dSal = profit / 2;
         const tShare = profit / 2;
-        const afterWallet = profit - walletDiff;
-        const afterRef = afterWallet - ref;
-        const finalGpay = afterRef + exp;
+        // Corrected: settlement base is TourBee's 50% share, not full profit
+        const afterWallet = tShare - walletDiff;
+        const finalGpay = afterWallet - ref;
 
         setBreakdown({
           payment_mode: 'REVENUE_SHARING',
@@ -160,8 +159,7 @@ export default function DailyCalculation() {
           profit_amount: profit.toFixed(2),
           driver_salary: dSal.toFixed(2),
           tourbee_share: tShare.toFixed(2),
-          amount_after_wallet_adjustment: afterWallet.toFixed(2),
-          amount_after_refund: afterRef.toFixed(2),
+          amount_after_wallet: afterWallet.toFixed(2),
           final_gpay_amount: finalGpay.toFixed(2),
           rent_due: '0.00',
         });

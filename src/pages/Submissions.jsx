@@ -57,9 +57,7 @@ export default function Submissions() {
     profit_amount: 0,
     driver_salary: 0,
     tourbee_share: 0,
-    initial_settlement_amount: 0,
-    amount_after_wallet_adjustment: 0,
-    amount_after_refund: 0,
+    amount_after_wallet: 0,
     final_gpay_amount: 0,
   });
 
@@ -134,7 +132,7 @@ export default function Submissions() {
   };
 
 
-  // Recalculate live breakdown on every keystroke following exact 8-step formula
+  // Recalculate live breakdown — corrected 50% profit-sharing formula
   useEffect(() => {
     const A = Math.max(0, parseFloat(formData.total_uber_earnings) || 0);
     const B = Math.max(0, parseFloat(formData.passenger_cash_collected) || 0);
@@ -145,35 +143,27 @@ export default function Submissions() {
     // Step 1: Wallet Difference = Total Uber Earnings - Passenger Cash Collected
     const wallet_difference = A - B;
 
-    // Step 2: Profit Amount = Total Uber Earnings - CNG Expense - Expenses
+    // Step 2: Net Profit = Total Uber Earnings - CNG Expense - Other Expenses
     const profit_amount = A - E - D;
 
-    // Step 3: Driver Salary = Profit Amount / 2
+    // Step 3: Driver Share = Net Profit × 50%
     const driver_salary = profit_amount / 2;
 
-    // Step 4: TourBee Share = Profit Amount / 2
+    // Step 4: TourBee Share = Net Profit × 50%
     const tourbee_share = profit_amount / 2;
 
-    // Step 5: Initial Settlement Amount = Profit Amount
-    const initial_settlement_amount = profit_amount;
-
-    // Step 6: Amount After Wallet Adjustment = Initial Settlement Amount - Wallet Difference
-    const amount_after_wallet_adjustment = initial_settlement_amount - wallet_difference;
-
-    // Step 7: Amount After Refund = Amount After Wallet Adjustment - Refund
-    const amount_after_refund = amount_after_wallet_adjustment - F;
-
-    // Step 8: Final GPay Amount = Amount After Refund + Expenses
-    const final_gpay_amount = amount_after_refund + D;
+    // Step 5: Final GPay = TourBee Share - Wallet Difference - Refund
+    // TourBee is owed their 50%, but Uber already settled wallet_difference
+    // to the company, and refund reduces what the driver owes.
+    const amount_after_wallet = tourbee_share - wallet_difference;
+    const final_gpay_amount = amount_after_wallet - F;
 
     setLiveBreakdown({
       wallet_difference,
       profit_amount,
       driver_salary,
       tourbee_share,
-      initial_settlement_amount,
-      amount_after_wallet_adjustment,
-      amount_after_refund,
+      amount_after_wallet,
       final_gpay_amount,
     });
   }, [
@@ -672,51 +662,47 @@ export default function Submissions() {
             {/* Prominent GPay Preview */}
             <div className="my-5 p-5 rounded-2xl bg-gradient-to-r from-emerald-950 to-teal-950 border border-emerald-500/30 text-center">
               <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-400">
-                Prominent Final GPay Amount
+                Final GPay Amount
               </span>
-              <div className="text-3xl sm:text-4xl font-black text-white mt-1">
-                {formatINR(liveBreakdown.final_gpay_amount)}
+              <div className={`text-3xl sm:text-4xl font-black mt-1 ${liveBreakdown.final_gpay_amount < 0 ? 'text-red-400' : 'text-white'}`}>
+                {liveBreakdown.final_gpay_amount < 0 ? '-' : ''}{formatINR(Math.abs(liveBreakdown.final_gpay_amount))}
               </div>
               <p className="text-[11px] text-emerald-300/80 mt-1 font-medium">
-                Amount payable via Google Pay
+                {liveBreakdown.final_gpay_amount >= 0 ? 'Amount driver pays TourBee via GPay' : 'Company owes driver this amount'}
               </p>
             </div>
 
-            {/* 8-Step Breakdown list */}
+            {/* Calculation Breakdown */}
             <div className="space-y-2.5 text-xs">
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-400">Step 1: Wallet Difference</span>
-                <span className="font-bold text-white">{formatINR(liveBreakdown.wallet_difference)}</span>
+                <span className="text-slate-400">Wallet Difference (A − B)</span>
+                <span className={`font-bold ${liveBreakdown.wallet_difference < 0 ? 'text-red-400' : 'text-white'}`}>{formatINR(liveBreakdown.wallet_difference)}</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-400">Step 2: Profit Amount</span>
-                <span className="font-bold text-white">{formatINR(liveBreakdown.profit_amount)}</span>
+                <span className="text-slate-400">Net Profit (A − CNG − Expenses)</span>
+                <span className={`font-bold ${liveBreakdown.profit_amount < 0 ? 'text-red-400' : 'text-white'}`}>{formatINR(liveBreakdown.profit_amount)}</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-400">Step 3: Driver Salary (50%)</span>
+                <span className="text-slate-400">Driver Share (50%)</span>
                 <span className="font-bold text-emerald-400">{formatINR(liveBreakdown.driver_salary)}</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-400">Step 4: TourBee Share (50%)</span>
+                <span className="text-slate-400">TourBee Share (50%)</span>
                 <span className="font-bold text-teal-400">{formatINR(liveBreakdown.tourbee_share)}</span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-400">Step 6: After Wallet Adjustment</span>
-                <span className="font-bold text-white">{formatINR(liveBreakdown.amount_after_wallet_adjustment)}</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-slate-800/60">
-                <span className="text-slate-400">Step 7: After Refund</span>
-                <span className="font-bold text-white">{formatINR(liveBreakdown.amount_after_refund)}</span>
+                <span className="text-slate-400">After Wallet Adjustment</span>
+                <span className="font-bold text-white">{formatINR(liveBreakdown.amount_after_wallet)}</span>
               </div>
               <div className="flex justify-between items-center py-1 font-black text-emerald-300">
-                <span>Step 8: Final GPay Amount</span>
+                <span>Final GPay Amount</span>
                 <span className="text-sm">{formatINR(liveBreakdown.final_gpay_amount)}</span>
               </div>
             </div>
           </div>
 
           <div className="mt-4 p-3 bg-slate-800/60 rounded-xl text-[11px] text-slate-400 border border-slate-700/60">
-            <strong>Formula:</strong> Final GPay = Profit Amount - Wallet Difference - Refund + Expenses
+            <strong>Formula:</strong> Final GPay = TourBee Share (50%) − Wallet Difference − Refund
           </div>
         </div>
       </div>
