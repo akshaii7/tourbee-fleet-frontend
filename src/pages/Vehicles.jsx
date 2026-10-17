@@ -18,7 +18,8 @@ import {
 
 export default function Vehicles() {
   const { data: vehiclesData, isLoading: loading, error: queryError } = useVehicles();
-  const vehicles = vehiclesData ? (vehiclesData.results || vehiclesData) : [];
+  const vehiclesRaw = vehiclesData?.results ?? vehiclesData?.data ?? vehiclesData ?? [];
+  const vehicles = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [showModal, setShowModal] = useState(false);

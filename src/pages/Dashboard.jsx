@@ -59,8 +59,11 @@ export default function Dashboard() {
   const { data: driversData } = useDrivers();
   const { data: vehiclesData } = useVehicles();
 
-  const driversList = driversData ? (driversData.results || driversData) : [];
-  const vehiclesList = vehiclesData ? (vehiclesData.results || vehiclesData) : [];
+  const driversRaw = driversData?.results ?? driversData?.data ?? driversData ?? [];
+  const driversList = Array.isArray(driversRaw) ? driversRaw : [];
+
+  const vehiclesRaw = vehiclesData?.results ?? vehiclesData?.data ?? vehiclesData ?? [];
+  const vehiclesList = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
 
   const handleFilterChange = (key, val) => {
     setFilters((prev) => ({ ...prev, [key]: val }));

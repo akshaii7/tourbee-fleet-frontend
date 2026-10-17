@@ -22,8 +22,11 @@ export default function Maintenance() {
   const { data: maintData, isLoading: maintLoading } = useMaintenance();
   const { data: vehData, isLoading: vehLoading } = useVehicles();
 
-  const records = maintData ? (maintData.results || maintData) : [];
-  const vehicles = vehData ? (vehData.results || vehData) : [];
+  const recordsRaw = maintData?.results ?? maintData?.data ?? maintData ?? [];
+  const records = Array.isArray(recordsRaw) ? recordsRaw : [];
+
+  const vehiclesRaw = vehData?.results ?? vehData?.data ?? vehData ?? [];
+  const vehicles = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
   const loading = maintLoading || (isAdmin && vehLoading);
 
   const [error, setError] = useState('');

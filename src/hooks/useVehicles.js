@@ -5,11 +5,13 @@ import { queryKeys } from '../queryKeys';
 export const VEHICLES_QUERY_KEY = queryKeys.vehicles;
 
 export function useVehicles() {
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.vehicles,
     queryFn: async () => {
       const res = await fleetService.getFleetVehicles();
       return res.data;
     },
   });
+
+  return query;
 }

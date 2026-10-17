@@ -30,15 +30,18 @@ export default function Drivers() {
   const { data: driversData, isLoading: driversLoading } = useDrivers();
   const { data: vehiclesData, isLoading: vehiclesLoading } = useVehicles();
 
-  const driversList = driversData ? (driversData.results || driversData) : [];
-  const vehicles = vehiclesData ? (vehiclesData.results || vehiclesData) : [];
+  const driversRaw = driversData?.results ?? driversData?.data ?? driversData ?? [];
+  const driversList = Array.isArray(driversRaw) ? driversRaw : [];
+
+  const vehiclesRaw = vehiclesData?.results ?? vehiclesData?.data ?? vehiclesData ?? [];
+  const vehicles = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
   const loading = driversLoading || vehiclesLoading;
 
-  const [drivers, setDrivers] = useState([]);
+  const [drivers, setDrivers] = useState(() => driversList);
   
   // Keep local drivers state in sync with query cache when not overridden by optimistic updates
   React.useEffect(() => {
-    if (driversList) {
+    if (driversList && driversList.length > 0) {
       setDrivers(driversList);
     }
   }, [driversList]);

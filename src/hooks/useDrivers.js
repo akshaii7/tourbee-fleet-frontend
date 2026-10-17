@@ -5,11 +5,13 @@ import { queryKeys } from '../queryKeys';
 export const DRIVERS_QUERY_KEY = queryKeys.drivers;
 
 export function useDrivers() {
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.drivers,
     queryFn: async () => {
       const res = await driverService.getAll();
       return res.data;
     },
   });
+
+  return query;
 }

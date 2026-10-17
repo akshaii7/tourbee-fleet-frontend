@@ -5,9 +5,8 @@ import { queryKeys } from '../queryKeys';
 export const CALCULATIONS_QUERY_KEY = queryKeys.calculations;
 
 export function useCalculations(options = {}) {
-  // Support both legacy positional param object and options object
   const select = typeof options === 'function' ? options : options?.select;
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.calculations,
     queryFn: async () => {
       const res = await fleetService.getCalculations();
@@ -15,4 +14,6 @@ export function useCalculations(options = {}) {
     },
     select,
   });
+
+  return query;
 }

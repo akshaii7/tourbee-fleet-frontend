@@ -28,11 +28,31 @@ export const AuthProvider = ({ children }) => {
     const data = await authService.login(username, password);
     setUser(data.user);
     queryClient.setQueryData(['me'], data.user);
+
+    // Warm up critical cache in background
+    setTimeout(() => {
+      queryClient.prefetchQuery({
+        queryKey: ['dashboard', {}],
+        queryFn: () => authService.getDashboard ? authService.getDashboard({}) : null,
+      }).catch(() => {});
+      queryClient.prefetchQuery({
+        queryKey: ['drivers'],
+        queryFn: () => import('../services/api').then(m => m.driverService.getAll()),
+      }).catch(() => {});
+      queryClient.prefetchQuery({
+        queryKey: ['vehicles'],
+        queryFn: () => import('../services/api').then(m => m.vehicleService.getAll()),
+      }).catch(() => {});
+    }, 100);
+
     return data;
   };
 
   const logout = () => {
     authService.logout();
+    try {
+      localStorage.removeItem('tourbee-cache');
+    } catch (e) {}
     queryClient.clear();
     setUser(null);
   };

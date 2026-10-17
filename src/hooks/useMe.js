@@ -6,7 +6,7 @@ export const ME_QUERY_KEY = queryKeys.me;
 
 export function useMe() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('tourbee_access_token') : null;
-  return useQuery({
+  const query = useQuery({
     queryKey: queryKeys.me,
     queryFn: async () => {
       const res = await authService.getProfile();
@@ -16,6 +16,8 @@ export function useMe() {
       return res.data;
     },
     enabled: !!token,
-    staleTime: Infinity, // Intentional exception: user profile stays valid for the entire active session
+    staleTime: Infinity,
   });
+
+  return query;
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { queryClient } from '../queryClient';
 import {
   LayoutDashboard,
   Users,
@@ -105,10 +106,36 @@ export default function Sidebar({ mobileOpen, setMobileOpen, pendingCount = 0 })
         </div>
         {links.map((link) => {
           const Icon = link.icon;
+          const handlePrefetch = () => {
+            if (link.path === '/dashboard') {
+              queryClient.prefetchQuery({
+                queryKey: ['dashboard', {}],
+                queryFn: () => import('../services/api').then(m => m.authService.getDashboard ? m.authService.getDashboard({}) : null),
+              }).catch(() => {});
+            } else if (link.path === '/drivers') {
+              queryClient.prefetchQuery({
+                queryKey: ['drivers'],
+                queryFn: () => import('../services/api').then(m => m.driverService.getAll()),
+              }).catch(() => {});
+            } else if (link.path === '/vehicles') {
+              queryClient.prefetchQuery({
+                queryKey: ['vehicles'],
+                queryFn: () => import('../services/api').then(m => m.vehicleService.getAll()),
+              }).catch(() => {});
+            } else if (link.path === '/submissions' || link.path === '/daily-calculation') {
+              queryClient.prefetchQuery({
+                queryKey: ['calculations'],
+                queryFn: () => import('../services/api').then(m => m.calculationService.getAll()),
+              }).catch(() => {});
+            }
+          };
+
           return (
             <NavLink
               key={link.path}
               to={link.path}
+              onMouseEnter={handlePrefetch}
+              onFocus={handlePrefetch}
               onClick={() => setMobileOpen && setMobileOpen(false)}
               className={({ isActive }) =>
                 `flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
