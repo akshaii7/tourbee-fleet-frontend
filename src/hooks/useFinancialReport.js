@@ -10,5 +10,6 @@ export function useFinancialReport(params = {}) {
       const res = await reportService.getFinancialReport(params);
       return res.data;
     },
+    staleTime: 60000,
   });
 }

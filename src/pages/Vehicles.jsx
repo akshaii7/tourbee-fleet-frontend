@@ -102,7 +102,6 @@ export default function Vehicles() {
       }
       setShowModal(false);
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
-      queryClient.invalidateQueries({ queryKey: ['fleetVehicles'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err) {
       console.error(err);

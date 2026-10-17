@@ -26,11 +26,11 @@ import {
 
 export default function Submissions() {
   const { user, isAdmin } = useAuth();
-  const revShareParams = useMemo(() => ({ payment_mode: 'REVENUE_SHARING' }), []);
   const { data: vRes, isLoading: vLoading } = useFleetVehicles();
-  const { data: cRes, isLoading: cLoading } = useCalculations(revShareParams);
+  const { data: cRes, isLoading: cLoading } = useCalculations();
   const { data: dRes, isLoading: dLoading } = useDrivers();
-  const { data: dashRes, isLoading: dashLoading } = useDashboard();
+  // Only fetch dashboard for drivers (to get assigned_vehicle_id); admins don't need it here
+  const { data: dashRes, isLoading: dashLoading } = useDashboard({}, { enabled: !isAdmin });
 
   const vehicles = useMemo(() => {
     const list = vRes?.results ?? vRes ?? [];
