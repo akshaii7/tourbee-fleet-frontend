@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { vehicleService } from '../services/api';
+import { useVehicles } from '../hooks/useVehicles';
+import { queryClient } from '../queryClient';
 import {
   Car,
   Search,
@@ -15,8 +17,8 @@ import {
 } from 'lucide-react';
 
 export default function Vehicles() {
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: vehiclesData, isLoading: loading, error: queryError } = useVehicles();
+  const vehicles = vehiclesData ? (vehiclesData.results || vehiclesData) : [];
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [showModal, setShowModal] = useState(false);
@@ -39,23 +41,6 @@ export default function Vehicles() {
     daily_rent_rate: '850.00',
     notes: '',
   });
-
-  useEffect(() => {
-    loadVehicles();
-  }, []);
-
-  const loadVehicles = async () => {
-    try {
-      setLoading(true);
-      const res = await vehicleService.getAll();
-      setVehicles(res.data.results || res.data);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch vehicle fleet data.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const openCreateModal = () => {
     setEditVehicle(null);
@@ -116,7 +101,9 @@ export default function Vehicles() {
         await vehicleService.create(payload);
       }
       setShowModal(false);
-      loadVehicles();
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['fleetVehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { reportService } from '../services/api';
+import { useFinancialReport } from '../hooks/useFinancialReport';
 import {
   BarChart3,
   Calendar,
@@ -23,30 +24,14 @@ export default function Reports() {
   const [startDate, setStartDate] = useState(firstOfMonth);
   const [endDate, setEndDate] = useState(today);
   const [exportType, setExportType] = useState('earnings');
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadReport();
-  }, [startDate, endDate]);
+  const reportParams = useMemo(() => ({
+    start_date: startDate,
+    end_date: endDate,
+  }), [startDate, endDate]);
 
-  const loadReport = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const res = await reportService.getFinancialReport({
-        start_date: startDate,
-        end_date: endDate,
-      });
-      setReport(res.data);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to generate financial reports.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: report, isLoading: loading, error: queryError } = useFinancialReport(reportParams);
+  const error = queryError ? 'Failed to generate financial reports.' : '';
 
   const handleExport = (format) => {
     const url = reportService.getExportUrl(exportType, format, startDate, endDate);

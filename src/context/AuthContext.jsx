@@ -1,29 +1,35 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
+import { useMe } from '../hooks/useMe';
+import { queryClient } from '../queryClient';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => authService.getCurrentUser());
   const [loading, setLoading] = useState(true);
 
+  const { data: profileData, isLoading: profileLoading } = useMe();
+
   useEffect(() => {
-    const savedUser = authService.getCurrentUser();
-    const token = localStorage.getItem('tourbee_access_token');
-    if (savedUser && token) {
-      setUser(savedUser);
+    if (profileData) {
+      setUser(profileData);
     }
-    setLoading(false);
-  }, []);
+    if (!profileLoading) {
+      setLoading(false);
+    }
+  }, [profileData, profileLoading]);
 
   const login = async (username, password) => {
     const data = await authService.login(username, password);
     setUser(data.user);
+    queryClient.setQueryData(['me'], data.user);
     return data;
   };
 
   const logout = () => {
     authService.logout();
+    queryClient.clear();
     setUser(null);
   };
 

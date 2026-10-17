@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fleetService, driverService } from '../services/api';
+import { fleetService } from '../services/api';
+import { useFleetVehicles } from '../hooks/useFleetVehicles';
+import { useDrivers } from '../hooks/useDrivers';
+import { useDashboard } from '../hooks/useDashboard';
+import { useCalculations, CALCULATIONS_QUERY_KEY } from '../hooks/useCalculations';
+import { queryClient } from '../queryClient';
 import {
   FileSpreadsheet,
   Upload,
@@ -21,10 +26,28 @@ import {
 
 export default function Submissions() {
   const { user, isAdmin } = useAuth();
-  const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [calculations, setCalculations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const revShareParams = useMemo(() => ({ payment_mode: 'REVENUE_SHARING' }), []);
+  const { data: vRes, isLoading: vLoading } = useFleetVehicles();
+  const { data: cRes, isLoading: cLoading } = useCalculations(revShareParams);
+  const { data: dRes, isLoading: dLoading } = useDrivers();
+  const { data: dashRes, isLoading: dashLoading } = useDashboard();
+
+  const vehicles = useMemo(() => {
+    const list = vRes?.results ?? vRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [vRes]);
+
+  const calculations = useMemo(() => {
+    const list = cRes?.results ?? cRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [cRes]);
+
+  const drivers = useMemo(() => {
+    const list = dRes?.results ?? dRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [dRes]);
+
+  const loading = vLoading || cLoading || (isAdmin ? dLoading : dashLoading);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -61,75 +84,31 @@ export default function Submissions() {
     final_gpay_amount: 0,
   });
 
+  // Pre-select driver / vehicle
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const promises = [
-        fleetService.getFleetVehicles(),       // Use fleet.Vehicle IDs (correct for submissions)
-        fleetService.getCalculations({ payment_mode: 'REVENUE_SHARING' }),
-      ];
-      if (isAdmin) {
-        promises.push(driverService.getAll());
-      } else {
-        // For drivers, also fetch their dashboard to get assigned vehicle
-        promises.push(fleetService.getFleetDashboard());
+    if (isAdmin) {
+      if (drivers.length > 0 && !formData.driver) {
+        const firstDriver = drivers[0];
+        const matchVeh = firstDriver.assigned_vehicle
+          ? vehicles.find(v => v.id === firstDriver.assigned_vehicle || v.registration_number === firstDriver.assigned_vehicle)
+          : null;
+        setFormData((prev) => ({
+          ...prev,
+          driver: firstDriver.id,
+          vehicle: prev.vehicle || matchVeh?.id || vehicles[0]?.id || '',
+        }));
+      } else if (vehicles.length > 0 && !formData.vehicle) {
+        setFormData((prev) => ({ ...prev, vehicle: vehicles[0].id }));
       }
-      const [vRes, cRes, dOrDashRes] = await Promise.all(promises);
-      const vList = vRes.data.results || vRes.data;
-      setVehicles(vList);
-      setCalculations(cRes.data.results || cRes.data);
-
-      if (isAdmin) {
-        if (dOrDashRes) setDrivers(dOrDashRes.data.results || dOrDashRes.data);
-        // Default vehicle selection for admin
-        if (vList.length > 0) {
-          setFormData((prev) => ({ ...prev, vehicle: vList[0].id }));
+    } else {
+      if (!formData.vehicle) {
+        let assignedVehicleId = dashRes?.assigned_vehicle_id || (vehicles.length > 0 ? vehicles[0].id : '');
+        if (assignedVehicleId) {
+          setFormData((prev) => ({ ...prev, vehicle: assignedVehicleId }));
         }
-        const dlist = dOrDashRes?.data?.results || dOrDashRes?.data || [];
-        if (dlist.length > 0) {
-          const firstDriver = dlist[0];
-          const driverAssignedVehicle = firstDriver.assigned_vehicle;
-          const matchVeh = driverAssignedVehicle
-            ? vList.find(v => v.id === driverAssignedVehicle || v.registration_number === driverAssignedVehicle)
-            : null;
-          setFormData((prev) => ({
-            ...prev,
-            driver: firstDriver.id,
-            vehicle: matchVeh?.id || (vList[0]?.id || ''),
-          }));
-        }
-      } else {
-        // Pre-select driver's assigned vehicle from dashboard
-        const dashData = dOrDashRes?.data;
-        let assignedVehicleId = '';
-        if (dashData?.assigned_vehicle_id) {
-          assignedVehicleId = dashData.assigned_vehicle_id;
-        } else if (vList.length > 0) {
-          assignedVehicleId = vList[0].id;
-        }
-        setFormData((prev) => ({ ...prev, vehicle: assignedVehicleId }));
       }
-    } catch (err) {
-      console.error(err);
-      // Try basic vehicle load even if dashboard fails
-      try {
-        const vRes = await fleetService.getFleetVehicles();
-        const vList = vRes.data.results || vRes.data;
-        setVehicles(vList);
-        if (vList.length > 0) {
-          setFormData((prev) => ({ ...prev, vehicle: vList[0].id }));
-        }
-      } catch (_) {}
-      setError('Failed to load fleet data.');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isAdmin, drivers, vehicles, dashRes, formData.driver, formData.vehicle]);
 
 
   // Recalculate live breakdown — corrected 50% profit-sharing formula
@@ -238,9 +217,9 @@ export default function Submissions() {
       setCngBillFile(null);
       setUberScreenshotFile(null);
 
-      // Refresh calculation list
-      const cRes = await fleetService.getCalculations({ payment_mode: 'REVENUE_SHARING' });
-      setCalculations(cRes.data.results || cRes.data);
+      // Invalidate calculations cache so list refreshes across all pages
+      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
@@ -288,8 +267,8 @@ export default function Submissions() {
       await fleetService.markStatus(calcId, newStatus);
       setSuccessMsg(`Status updated to ${newStatus === 'PAID' ? 'Paid' : 'Pending'}.`);
       setTimeout(() => setSuccessMsg(''), 4000);
-      const cRes = await fleetService.getCalculations({ payment_mode: 'REVENUE_SHARING' });
-      setCalculations(cRes.data.results || cRes.data);
+      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err) {
       console.error(err);
       setError('Failed to update status.');

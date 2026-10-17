@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fleetService, driverService, deductionService } from '../services/api';
+import { fleetService } from '../services/api';
+import { useDrivers } from '../hooks/useDrivers';
+import { useCalculations, CALCULATIONS_QUERY_KEY } from '../hooks/useCalculations';
+import { useSalaryPayments, SALARY_PAYMENTS_QUERY_KEY } from '../hooks/useSalaryPayments';
+import { useDeductions, DEDUCTIONS_QUERY_KEY } from '../hooks/useDeductions';
+import { queryClient } from '../queryClient';
 import {
   DollarSign,
   Calculator,
@@ -23,26 +28,57 @@ import {
 
 export default function SalaryCalculations() {
   const { user, isAdmin } = useAuth();
-  const [drivers, setDrivers] = useState([]);
-  const [calculations, setCalculations] = useState([]);
-  const [salaryPayments, setSalaryPayments] = useState([]);
-  const [deductions, setDeductions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: dRes, isLoading: driversLoading } = useDrivers();
+  const { data: cRes, isLoading: calcsLoading } = useCalculations();
+  const { data: pRes, isLoading: paymentsLoading } = useSalaryPayments();
+  const { data: dedRes, isLoading: deductionsLoading } = useDeductions();
+
+  const drivers = useMemo(() => {
+    const list = dRes?.results ?? dRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [dRes]);
+
+  const calculations = useMemo(() => {
+    const list = cRes?.results ?? cRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [cRes]);
+
+  const salaryPayments = useMemo(() => {
+    const list = pRes?.results ?? pRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [pRes]);
+
+  const deductions = useMemo(() => {
+    const list = dedRes?.results ?? dedRes ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [dedRes]);
+
+  const loading = (isAdmin && driversLoading) || calcsLoading || paymentsLoading || deductionsLoading;
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   // Selected driver for balance / filter
   const [selectedDriverId, setSelectedDriverId] = useState('');
 
+  // Set initial selectedDriverId when drivers load
+  useEffect(() => {
+    if (isAdmin && drivers.length > 0 && !selectedDriverId) {
+      setSelectedDriverId(drivers[0].id);
+      setDeductionForm((prev) => ({ ...prev, driver: drivers[0].id }));
+      setPaymentForm((prev) => ({ ...prev, driver: drivers[0].id }));
+    }
+  }, [isAdmin, drivers, selectedDriverId]);
+
   // Deduction Modal State
   const [deductionModal, setDeductionModal] = useState(false);
-  const [deductionForm, setDeductionForm] = useState({
+  const [deductionForm, setFormDataDeduction] = useState({
     driver: '',
     date: new Date().toISOString().split('T')[0],
     amount: '',
     reason: '',
     file: null,
   });
+  const setDeductionForm = setFormDataDeduction;
   const [submittingDeduction, setSubmittingDeduction] = useState(false);
 
   // Salary Payout Modal State
@@ -54,49 +90,6 @@ export default function SalaryCalculations() {
     notes: '',
   });
   const [submittingPayment, setSubmittingPayment] = useState(false);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const promises = [
-        fleetService.getCalculations(),
-        fleetService.getSalaryPayments(),
-        fleetService.getDeductions(),
-      ];
-      if (isAdmin) {
-        promises.push(driverService.getAll());
-      }
-
-      const [calcRes, payRes, dedRes, drvRes] = await Promise.all(promises);
-      const calcList = calcRes.data.results || calcRes.data || [];
-      const payList = payRes.data.results || payRes.data || [];
-      const dedList = dedRes.data.results || dedRes.data || [];
-
-      setCalculations(calcList);
-      setSalaryPayments(payList);
-      setDeductions(dedList);
-
-      if (drvRes) {
-        const drvList = drvRes.data.results || drvRes.data || [];
-        setDrivers(drvList);
-        if (drvList.length > 0 && !selectedDriverId) {
-          setSelectedDriverId(drvList[0].id);
-          setDeductionForm((prev) => ({ ...prev, driver: drvList[0].id }));
-          setPaymentForm((prev) => ({ ...prev, driver: drvList[0].id }));
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch financial and deduction records.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const formatINR = (val) => {
     return new Intl.NumberFormat('en-IN', {
@@ -177,7 +170,10 @@ export default function SalaryCalculations() {
         reason: '',
         file: null,
       });
-      loadData();
+      queryClient.invalidateQueries({ queryKey: DEDUCTIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['mySalary'] });
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.error || 'Failed to record deduction entry.');
@@ -191,7 +187,10 @@ export default function SalaryCalculations() {
     try {
       await fleetService.approveDeduction(id);
       setSuccessMsg('Deduction approved successfully. Driver balance updated.');
-      loadData();
+      queryClient.invalidateQueries({ queryKey: DEDUCTIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['mySalary'] });
     } catch (err) {
       console.error(err);
       setError('Failed to approve deduction.');
@@ -202,7 +201,10 @@ export default function SalaryCalculations() {
     try {
       await fleetService.rejectDeduction(id);
       setSuccessMsg('Deduction rejected.');
-      loadData();
+      queryClient.invalidateQueries({ queryKey: DEDUCTIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['mySalary'] });
     } catch (err) {
       console.error(err);
       setError('Failed to reject deduction.');
@@ -230,7 +232,10 @@ export default function SalaryCalculations() {
         month: new Date().toISOString().split('T')[0],
         notes: '',
       });
-      loadData();
+      queryClient.invalidateQueries({ queryKey: SALARY_PAYMENTS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['mySalary'] });
     } catch (err) {
       console.error(err);
       setError('Failed to record salary payment.');

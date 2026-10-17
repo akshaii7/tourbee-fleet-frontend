@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { fleetService, driverService, vehicleService } from '../services/api';
+import { fleetService } from '../services/api';
+import { useDashboard } from '../hooks/useDashboard';
+import { useDrivers } from '../hooks/useDrivers';
+import { useVehicles } from '../hooks/useVehicles';
+import { queryClient } from '../queryClient';
 import { MySalaryDashboardSection } from './MySalary';
 import {
   Car,
@@ -26,10 +30,6 @@ import {
 
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
-  const [metrics, setMetrics] = useState(null);
-  const [driversList, setDriversList] = useState([]);
-  const [vehiclesList, setVehiclesList] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -45,63 +45,35 @@ export default function Dashboard() {
   // Modal for previewing uploaded documents
   const [previewDoc, setPreviewDoc] = useState(null);
 
-  useEffect(() => {
-    fetchDashboard();
-    if (isAdmin) {
-      loadDropdowns();
-    }
-  }, []);
+  const cleanParams = useMemo(() => {
+    const p = {};
+    if (filters.date) p.date = filters.date;
+    if (filters.driver) p.driver = filters.driver;
+    if (filters.vehicle_reg) p.vehicle_reg = filters.vehicle_reg;
+    if (filters.payment_mode) p.payment_mode = filters.payment_mode;
+    if (filters.status) p.status = filters.status;
+    return p;
+  }, [filters]);
 
-  const loadDropdowns = async () => {
-    try {
-      const [dRes, vRes] = await Promise.all([
-        driverService.getAll(),
-        vehicleService.getAll(),
-      ]);
-      setDriversList(dRes.data.results || dRes.data);
-      setVehiclesList(vRes.data.results || vRes.data);
-    } catch (e) {
-      console.error('Error loading filter dropdowns:', e);
-    }
-  };
+  const { data: metrics, isLoading: loading, error: queryError } = useDashboard(cleanParams);
+  const { data: driversData } = useDrivers();
+  const { data: vehiclesData } = useVehicles();
 
-  const fetchDashboard = async (customFilters = filters) => {
-    try {
-      setLoading(true);
-      setError('');
-      const params = {};
-      if (customFilters.date) params.date = customFilters.date;
-      if (customFilters.driver) params.driver = customFilters.driver;
-      if (customFilters.vehicle_reg) params.vehicle_reg = customFilters.vehicle_reg;
-      if (customFilters.payment_mode) params.payment_mode = customFilters.payment_mode;
-      if (customFilters.status) params.status = customFilters.status;
-
-      const res = await fleetService.getFleetDashboard(params);
-      setMetrics(res.data);
-    } catch (err) {
-      console.error('Failed to load dashboard metrics:', err);
-      setError('Failed to fetch real database metrics from backend.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const driversList = driversData ? (driversData.results || driversData) : [];
+  const vehiclesList = vehiclesData ? (vehiclesData.results || vehiclesData) : [];
 
   const handleFilterChange = (key, val) => {
-    const updated = { ...filters, [key]: val };
-    setFilters(updated);
-    fetchDashboard(updated);
+    setFilters((prev) => ({ ...prev, [key]: val }));
   };
 
   const handleResetFilters = () => {
-    const reset = {
+    setFilters({
       date: '',
       driver: '',
       vehicle_reg: '',
       payment_mode: '',
       status: '',
-    };
-    setFilters(reset);
-    fetchDashboard(reset);
+    });
   };
 
   const handleMarkStatus = async (calcId, currentStatus) => {
@@ -110,7 +82,9 @@ export default function Dashboard() {
       await fleetService.markStatus(calcId, newStatus);
       setSuccessMsg(`Submission #${calcId} updated to ${newStatus === 'PAID' ? 'Paid' : 'Pending'}.`);
       setTimeout(() => setSuccessMsg(''), 4000);
-      fetchDashboard();
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['calculations'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
     } catch (err) {
       console.error(err);
       setError('Failed to update payment status.');

@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fleetService, driverService } from '../services/api';
+import { fleetService } from '../services/api';
+import { useDrivers } from '../hooks/useDrivers';
+import { useFleetVehicles } from '../hooks/useFleetVehicles';
+import { useCalculations, CALCULATIONS_QUERY_KEY } from '../hooks/useCalculations';
+import { queryClient } from '../queryClient';
 import {
   Calculator,
   Lock,
@@ -20,10 +24,11 @@ import {
 export default function DailyCalculation() {
   const { user, isAdmin } = useAuth();
 
-  const [drivers, setDrivers] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-  const [calculations, setCalculations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: driversRaw, isLoading: driversLoading } = useDrivers();
+  const { data: vehiclesRaw, isLoading: vehiclesLoading } = useFleetVehicles();
+  const { data: calculationsRaw, isLoading: calcsLoading } = useCalculations();
+
+  // Local form state (not server state)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -63,38 +68,34 @@ export default function DailyCalculation() {
     rent_due: '0.00',
   });
 
+  const drivers = useMemo(() => {
+    const list = driversRaw?.results ?? driversRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [driversRaw]);
+
+  const vehicles = useMemo(() => {
+    const list = vehiclesRaw?.results ?? vehiclesRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [vehiclesRaw]);
+
+  const calculations = useMemo(() => {
+    const list = calculationsRaw?.results ?? calculationsRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [calculationsRaw]);
+
+  const loading = driversLoading || vehiclesLoading || calcsLoading;
+
+  // Pre-fill driver/vehicle when list loads
   useEffect(() => {
-    loadInitialData();
-  }, []);
-
-  const loadInitialData = async () => {
-    try {
-      setLoading(true);
-      const [drvRes, vehRes, calcRes] = await Promise.all([
-        driverService.getAll(),
-        fleetService.getFleetVehicles(),   // Use fleet.Vehicle IDs (correct for submissions)
-        fleetService.getCalculations(),
-      ]);
-      const drvList = drvRes.data.results || drvRes.data;
-      const vehList = vehRes.data.results || vehRes.data;
-      setDrivers(drvList);
-      setVehicles(vehList);
-      setCalculations(calcRes.data.results || calcRes.data);
-
-      if (drvList.length > 0 && !formData.driver) {
-        setFormData((prev) => ({
-          ...prev,
-          driver: drvList[0].id,
-          vehicle: drvList[0].assigned_vehicle || (vehList[0]?.id || ''),
-        }));
-      }
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load initial data');
-    } finally {
-      setLoading(false);
+    if (drivers.length > 0 && !formData.driver) {
+      setFormData((prev) => ({
+        ...prev,
+        driver: drivers[0].id,
+        vehicle: drivers[0].assigned_vehicle || (vehicles[0]?.id || ''),
+      }));
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drivers.length]);
 
   // Recalculate immediately whenever inputs, mode, or working day changes
   useEffect(() => {
@@ -207,8 +208,8 @@ export default function DailyCalculation() {
         refund: formData.refund || 0,
       });
       setSuccess('Daily calculation saved successfully!');
-      const res = await fleetService.getCalculations();
-      setCalculations(res.data.results || res.data);
+      // Invalidate the shared calculations cache so all pages see the new entry
+      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
@@ -228,9 +229,13 @@ export default function DailyCalculation() {
     try {
       const nextStatus = currentStatus === 'PAID' ? 'PENDING' : 'PAID';
       await fleetService.markStatus(calcId, nextStatus);
-      setCalculations((prev) =>
-        prev.map((c) => (c.id === calcId ? { ...c, status: nextStatus } : c))
-      );
+      // Optimistic update in cache
+      queryClient.setQueryData([...CALCULATIONS_QUERY_KEY], (old) => {
+        if (!old) return old;
+        const list = old?.results ? old.results : old;
+        const updated = list.map((c) => (c.id === calcId ? { ...c, status: nextStatus } : c));
+        return old?.results ? { ...old, results: updated } : updated;
+      });
     } catch (err) {
       console.error(err);
       alert('Failed to update status.');

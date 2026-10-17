@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { maintenanceService, vehicleService } from '../services/api';
+import { maintenanceService } from '../services/api';
+import { useMaintenance } from '../hooks/useMaintenance';
+import { useVehicles } from '../hooks/useVehicles';
+import { queryClient } from '../queryClient';
 import {
   Wrench,
   Plus,
@@ -16,9 +19,13 @@ import {
 
 export default function Maintenance() {
   const { user, isAdmin } = useAuth();
-  const [records, setRecords] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: maintData, isLoading: maintLoading } = useMaintenance();
+  const { data: vehData, isLoading: vehLoading } = useVehicles();
+
+  const records = maintData ? (maintData.results || maintData) : [];
+  const vehicles = vehData ? (vehData.results || vehData) : [];
+  const loading = maintLoading || (isAdmin && vehLoading);
+
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -34,27 +41,6 @@ export default function Maintenance() {
     invoice_number: '',
     notes: '',
   });
-
-  useEffect(() => {
-    loadMaintenance();
-  }, []);
-
-  const loadMaintenance = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const promises = [maintenanceService.getAll()];
-      if (isAdmin) promises.push(vehicleService.getAll());
-      const [mRes, vRes] = await Promise.all(promises);
-      setRecords(mRes.data.results || mRes.data);
-      if (vRes) setVehicles(vRes.data.results || vRes.data);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch maintenance history.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const openCreateModal = () => {
     setFormData({
@@ -89,7 +75,9 @@ export default function Maintenance() {
       await maintenanceService.create(payload);
       setSuccessMsg('Vehicle maintenance log recorded successfully!');
       setShowModal(false);
-      loadMaintenance();
+      queryClient.invalidateQueries({ queryKey: ['maintenance'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;

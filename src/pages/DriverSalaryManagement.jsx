@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { AlertCircle, CheckCircle2, History, Plus, RotateCcw, Search, X, Info } from 'lucide-react';
 import { fleetService } from '../services/api';
+import { useSalaryOverview, SALARY_OVERVIEW_QUERY_KEY } from '../hooks/useSalaryOverview';
+import { useSalaryPayments, SALARY_PAYMENTS_QUERY_KEY } from '../hooks/useSalaryPayments';
+import { queryClient } from '../queryClient';
 import {
   formatINR,
   SalaryStatusBadge,
@@ -34,14 +37,31 @@ const emptyForm = (driverId = '') => ({
 });
 
 export default function DriverSalaryManagement() {
-  const [allDrivers, setAllDrivers] = useState([]);
-  const [payments, setPayments] = useState({ rows: [], count: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-
   const [filters, setFilters] = useState({ driver: '', date_from: '', date_to: '' });
   const [search, setSearch] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const payParams = useMemo(() => {
+    const p = {};
+    if (filters.driver) p.driver = filters.driver;
+    if (filters.date_from) p.date_from = filters.date_from;
+    if (filters.date_to) p.date_to = filters.date_to;
+    return p;
+  }, [filters.driver, filters.date_from, filters.date_to]);
+
+  const { data: ovData, isLoading: ovLoading, error: ovError } = useSalaryOverview();
+  const { data: payData, isLoading: payLoading, error: payError } = useSalaryPayments(payParams);
+
+  const allDrivers = useMemo(() => ovData?.drivers || [], [ovData]);
+  const payments = useMemo(() => {
+    const list = payData?.results || payData || [];
+    return { rows: Array.isArray(list) ? list : [], count: payData?.count ?? (Array.isArray(list) ? list.length : 0) };
+  }, [payData]);
+
+  const loading = ovLoading || payLoading;
+  const error = ovError
+    ? apiErrorMessage(ovError, 'Failed to load salary records.')
+    : (payError ? apiErrorMessage(payError, 'Failed to load salary payments.') : '');
 
   // Payment modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -50,33 +70,6 @@ export default function DriverSalaryManagement() {
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false); // blocks double-clicks before state re-renders
   const idemKey = useRef(newKey());
-
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const payParams = {};
-      if (filters.driver) payParams.driver = filters.driver;
-      if (filters.date_from) payParams.date_from = filters.date_from;
-      if (filters.date_to) payParams.date_to = filters.date_to;
-
-      const [ovRes, payRes] = await Promise.all([
-        fleetService.getSalaryOverview(),
-        fleetService.getSalaryPayments(payParams),
-      ]);
-      setAllDrivers(ovRes.data.drivers || []);
-      const list = payRes.data.results || payRes.data || [];
-      setPayments({ rows: list, count: payRes.data.count ?? list.length });
-    } catch (err) {
-      setError(apiErrorMessage(err, 'Failed to load salary records.'));
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.driver, filters.date_from, filters.date_to]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   // Drivers in scope of the driver filter (all drivers when no filter is chosen).
   const scopedDrivers = filters.driver
@@ -146,7 +139,10 @@ export default function DriverSalaryManagement() {
       setTimeout(() => setSuccess(''), 6000);
       setModalOpen(false);
       idemKey.current = newKey();
-      await load();
+      queryClient.invalidateQueries({ queryKey: SALARY_PAYMENTS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: SALARY_OVERVIEW_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['mySalary'] });
     } catch (err) {
       setFormError(apiErrorMessage(err, 'Could not record the payment.'));
     } finally {

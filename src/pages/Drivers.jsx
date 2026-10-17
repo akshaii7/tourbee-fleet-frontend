@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { driverService, vehicleService, fleetService } from '../services/api';
+import { useDrivers } from '../hooks/useDrivers';
+import { useVehicles } from '../hooks/useVehicles';
+import { queryClient } from '../queryClient';
 import {
   Users,
   Search,
@@ -24,9 +27,22 @@ import {
 } from 'lucide-react';
 
 export default function Drivers() {
+  const { data: driversData, isLoading: driversLoading } = useDrivers();
+  const { data: vehiclesData, isLoading: vehiclesLoading } = useVehicles();
+
+  const driversList = driversData ? (driversData.results || driversData) : [];
+  const vehicles = vehiclesData ? (vehiclesData.results || vehiclesData) : [];
+  const loading = driversLoading || vehiclesLoading;
+
   const [drivers, setDrivers] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Keep local drivers state in sync with query cache when not overridden by optimistic updates
+  React.useEffect(() => {
+    if (driversList) {
+      setDrivers(driversList);
+    }
+  }, [driversList]);
+
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
   
@@ -62,27 +78,6 @@ export default function Drivers() {
     emergency_contact_phone: '',
     is_active: true,
   });
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [drvRes, vehRes] = await Promise.all([
-        driverService.getAll(),
-        vehicleService.getAll(),
-      ]);
-      setDrivers(drvRes.data.results || drvRes.data);
-      setVehicles(vehRes.data.results || vehRes.data);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch drivers from PostgreSQL database.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const openCreateModal = () => {
     setEditDriver(null);
@@ -149,6 +144,9 @@ export default function Drivers() {
       setDrivers((prev) =>
         prev.map((item) => (item.id === d.id ? { ...item, is_active: nextStatus } : item))
       );
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
     } catch (err) {
       console.error(err);
       alert('Failed to update driver status.');
@@ -180,7 +178,9 @@ export default function Drivers() {
         await driverService.create(payload);
       }
       setShowModal(false);
-      loadData();
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
@@ -232,6 +232,9 @@ export default function Drivers() {
       setHistoryRecords((prev) =>
         prev.map((rec) => (rec.id === recordId ? { ...rec, status: newStatus } : rec))
       );
+      queryClient.invalidateQueries({ queryKey: ['calculations'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
     } catch (err) {
       console.error(err);
       alert('Failed to update payment status.');

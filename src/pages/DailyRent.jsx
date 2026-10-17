@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { fleetService, driverService } from '../services/api';
+import { fleetService } from '../services/api';
+import { useDrivers } from '../hooks/useDrivers';
+import { useFleetVehicles } from '../hooks/useFleetVehicles';
+import { useCalculations, CALCULATIONS_QUERY_KEY } from '../hooks/useCalculations';
+import { queryClient } from '../queryClient';
 import {
   CalendarDays,
   CheckCircle2,
@@ -16,16 +20,34 @@ import {
 
 export default function DailyRent() {
   const { user, isAdmin } = useAuth();
-  const [vehicles, setVehicles] = useState([]);
-  const [drivers, setDrivers] = useState([]);
-  const [rentRecords, setRentRecords] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const rentParams = useMemo(() => ({ payment_mode: 'FIXED_RENT' }), []);
+  const { data: vehiclesRaw, isLoading: vehiclesLoading } = useFleetVehicles();
+  const { data: driversRaw, isLoading: driversLoading } = useDrivers();
+  const { data: rentRaw, isLoading: rentLoading } = useCalculations(rentParams);
+
+  const vehicles = useMemo(() => {
+    const list = vehiclesRaw?.results ?? vehiclesRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [vehiclesRaw]);
+
+  const drivers = useMemo(() => {
+    const list = driversRaw?.results ?? driversRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [driversRaw]);
+
+  const rentRecords = useMemo(() => {
+    const list = rentRaw?.results ?? rentRaw ?? [];
+    return Array.isArray(list) ? list : [];
+  }, [rentRaw]);
+
+  const loading = vehiclesLoading || rentLoading || (isAdmin && driversLoading);
+
+  // Mutation feedback state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   const todayStr = new Date().toISOString().split('T')[0];
-
   // Exactly the 3 required fields for Fixed Daily Rent Mode
   const [formData, setFormData] = useState({
     driver: '',
@@ -34,44 +56,23 @@ export default function DailyRent() {
     working_day_type: 'FULL_DAY', // 'HALF_DAY' (₹650) or 'FULL_DAY' (₹1,200)
   });
 
+  // Pre-fill form defaults when data loads
   useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const promises = [
-        fleetService.getFleetVehicles(),
-        fleetService.getCalculations({ payment_mode: 'FIXED_RENT' }),
-      ];
-      if (isAdmin) {
-        promises.push(driverService.getAll());
-      }
-      const [vRes, rRes, dRes] = await Promise.all(promises);
-      const vList = vRes.data.results || vRes.data;
-      setVehicles(vList);
-      setRentRecords(rRes.data.results || rRes.data);
-      if (dRes) setDrivers(dRes.data.results || dRes.data);
-
-      const assignedId = user?.driver_profile?.assigned_vehicle_id;
-      if (assignedId) {
-        setFormData((prev) => ({ ...prev, vehicle: assignedId }));
-      } else if (vList.length > 0) {
-        setFormData((prev) => ({ ...prev, vehicle: vList[0].id }));
-      }
-
-      if (isAdmin && dRes && dRes.data.length > 0) {
-        setFormData((prev) => ({ ...prev, driver: dRes.data[0].id }));
-      }
-    } catch (err) {
-      console.error(err);
-      setError('Failed to load rent records.');
-    } finally {
-      setLoading(false);
+    const assignedId = user?.driver_profile?.assigned_vehicle_id;
+    if (assignedId) {
+      setFormData((prev) => ({ ...prev, vehicle: assignedId }));
+    } else if (vehicles.length > 0 && !formData.vehicle) {
+      setFormData((prev) => ({ ...prev, vehicle: vehicles[0].id }));
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicles.length]);
+
+  useEffect(() => {
+    if (isAdmin && drivers.length > 0 && !formData.driver) {
+      setFormData((prev) => ({ ...prev, driver: drivers[0].id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drivers.length]);
 
   const rentDueAmount = formData.working_day_type === 'HALF_DAY' ? 650 : 1200;
 
@@ -105,10 +106,8 @@ export default function DailyRent() {
       await fleetService.createCalculation(payload);
       setSuccessMsg(`Daily Rent record for ${formData.working_day_type === 'HALF_DAY' ? 'Half Day (₹650)' : 'Full Day (₹1,200)'} submitted successfully!`);
       setTimeout(() => setSuccessMsg(''), 5000);
-
-      // Refresh records
-      const rRes = await fleetService.getCalculations({ payment_mode: 'FIXED_RENT' });
-      setRentRecords(rRes.data.results || rRes.data);
+      // Invalidate shared cache so all pages see the new entry
+      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
     } catch (err) {
       console.error(err);
       const detail = err.response?.data?.detail || err.response?.data?.non_field_errors?.[0];
@@ -124,8 +123,13 @@ export default function DailyRent() {
       await fleetService.markStatus(calcId, newStatus);
       setSuccessMsg(`Rent record #${calcId} updated to ${newStatus === 'PAID' ? 'Paid' : 'Pending'}.`);
       setTimeout(() => setSuccessMsg(''), 4000);
-      const rRes = await fleetService.getCalculations({ payment_mode: 'FIXED_RENT' });
-      setRentRecords(rRes.data.results || rRes.data);
+      // Optimistic cache update
+      queryClient.setQueryData([...CALCULATIONS_QUERY_KEY, { payment_mode: 'FIXED_RENT' }], (old) => {
+        if (!old) return old;
+        const list = old?.results ? old.results : old;
+        const updated = list.map((c) => (c.id === calcId ? { ...c, status: newStatus } : c));
+        return old?.results ? { ...old, results: updated } : updated;
+      });
     } catch (err) {
       console.error(err);
       setError('Failed to update payment status.');

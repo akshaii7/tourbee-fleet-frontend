@@ -1,45 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, History, Info, RotateCcw, CalendarDays } from 'lucide-react';
-import { fleetService } from '../services/api';
+import { useMySalary } from '../hooks/useMySalary';
 import {
   formatINR,
   SalarySummaryCards,
   PaymentHistory,
-  apiErrorMessage,
 } from '../components/SalaryParts';
-
-function useMySalary(params) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const res = await fleetService.getMySalary(params);
-      setData(res.data);
-    } catch (err) {
-      setError(apiErrorMessage(err, 'Could not load your salary details.'));
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(params || {})]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  return { data, loading, error, reload: load };
-}
 
 // Compact "My Salary" block embedded in the 50% driver dashboard.
 export function MySalaryDashboardSection() {
-  const { data, loading, error } = useMySalary();
+  const { data, isLoading, error } = useMySalary();
 
-  if (loading && !data) {
+  if (isLoading && !data) {
     return <div className="h-28 rounded-2xl bg-white border border-slate-200/80 animate-pulse" />;
   }
   if (error || !data) return null;
@@ -71,9 +44,9 @@ export default function MySalary() {
   if (range.date_from) params.date_from = range.date_from;
   if (range.date_to) params.date_to = range.date_to;
 
-  const { data, loading, error } = useMySalary(params);
+  const { data, isLoading, error } = useMySalary(params);
 
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <div className="flex items-center justify-center min-h-[40vh]">
         <div className="w-9 h-9 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
@@ -85,7 +58,7 @@ export default function MySalary() {
     return (
       <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start space-x-2">
         <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-        <span>{error}</span>
+        <span>Could not load your salary details.</span>
       </div>
     );
   }
