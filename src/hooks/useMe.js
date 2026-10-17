@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { authService } from '../services/api';
+import { queryKeys } from '../queryKeys';
 
-export const ME_QUERY_KEY = ['me'];
+export const ME_QUERY_KEY = queryKeys.me;
 
 export function useMe() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('tourbee_access_token') : null;
   return useQuery({
-    queryKey: ME_QUERY_KEY,
+    queryKey: queryKeys.me,
     queryFn: async () => {
       const res = await authService.getProfile();
       if (res.data) {
@@ -15,6 +16,6 @@ export function useMe() {
       return res.data;
     },
     enabled: !!token,
-    staleTime: Infinity, // Ensures the "me" profile call happens only once on initial load
+    staleTime: Infinity, // Intentional exception: user profile stays valid for the entire active session
   });
 }

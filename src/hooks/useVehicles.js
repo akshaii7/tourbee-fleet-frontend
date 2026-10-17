@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { fleetService } from '../services/api';
+import { queryKeys } from '../queryKeys';
 
-export const VEHICLES_QUERY_KEY = ['vehicles'];
+export const VEHICLES_QUERY_KEY = queryKeys.vehicles;
 
 export function useVehicles() {
   return useQuery({
-    queryKey: VEHICLES_QUERY_KEY,
+    queryKey: queryKeys.vehicles,
     queryFn: async () => {
       const res = await fleetService.getFleetVehicles();
       return res.data;
     },
-    staleTime: 60000,
   });
 }

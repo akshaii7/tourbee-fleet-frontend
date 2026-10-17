@@ -208,8 +208,10 @@ export default function DailyCalculation() {
         refund: formData.refund || 0,
       });
       setSuccess('Daily calculation saved successfully!');
-      // Invalidate the shared calculations cache so all pages see the new entry
+      // Invalidate the shared calculations cache, dashboard, and financial reports
       queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
@@ -236,6 +238,8 @@ export default function DailyCalculation() {
         const updated = list.map((c) => (c.id === calcId ? { ...c, status: nextStatus } : c));
         return old?.results ? { ...old, results: updated } : updated;
       });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       alert('Failed to update status.');

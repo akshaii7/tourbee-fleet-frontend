@@ -85,6 +85,7 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['calculations'] });
       queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       setError('Failed to update payment status.');

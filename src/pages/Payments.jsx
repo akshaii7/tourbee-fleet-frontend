@@ -12,36 +12,19 @@ import {
   Filter
 } from 'lucide-react';
 
+import { useFinanceSalaryPayments, useFinanceRentPayments } from '../hooks/useFinancePayments';
+
 export default function Payments() {
   const { user, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('SALARY'); // 'SALARY' or 'RENT'
-  const [salaryPayments, setSalaryPayments] = useState([]);
-  const [rentPayments, setRentPayments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    loadPayments();
-  }, [activeTab]);
+  const { data: salaryData, isLoading: salaryLoading, error: salaryError } = useFinanceSalaryPayments();
+  const { data: rentData, isLoading: rentLoading, error: rentError } = useFinanceRentPayments();
 
-  const loadPayments = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      if (activeTab === 'SALARY') {
-        const res = await financeService.getSalaryPayments();
-        setSalaryPayments(res.data.results || res.data);
-      } else {
-        const res = await financeService.getRentPayments();
-        setRentPayments(res.data.results || res.data);
-      }
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch payment records.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const salaryPayments = salaryData || [];
+  const rentPayments = rentData || [];
+  const loading = activeTab === 'SALARY' ? salaryLoading : rentLoading;
+  const error = (activeTab === 'SALARY' ? salaryError : rentError) ? 'Failed to fetch payment records.' : '';
 
   const formatINR = (val) => {
     return new Intl.NumberFormat('en-IN', {

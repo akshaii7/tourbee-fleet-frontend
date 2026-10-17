@@ -217,9 +217,10 @@ export default function Submissions() {
       setCngBillFile(null);
       setUberScreenshotFile(null);
 
-      // Invalidate calculations cache so list refreshes across all pages
+      // Invalidate calculations, dashboard, and financial reports
       queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
@@ -269,6 +270,7 @@ export default function Submissions() {
       setTimeout(() => setSuccessMsg(''), 4000);
       queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       setError('Failed to update status.');

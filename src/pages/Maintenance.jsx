@@ -78,6 +78,7 @@ export default function Maintenance() {
       queryClient.invalidateQueries({ queryKey: ['maintenance'] });
       queryClient.invalidateQueries({ queryKey: ['vehicles'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;

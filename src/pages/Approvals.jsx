@@ -16,12 +16,18 @@ import {
   ArrowRight
 } from 'lucide-react';
 
+import { useApprovals } from '../hooks/useApprovals';
+import { queryClient } from '../queryClient';
+import { queryKeys } from '../queryKeys';
+
 export default function Approvals() {
   const [activeTab, setActiveTab] = useState('PENDING_EARNINGS'); // 'PENDING_EARNINGS' or 'PENDING_EXPENSES' or 'ALL_AUDIT'
-  const [pendingEarnings, setPendingEarnings] = useState([]);
-  const [pendingExpenses, setPendingExpenses] = useState([]);
-  const [allEarnings, setAllEarnings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { data: approvalsData, isLoading: loading, error: queryError } = useApprovals();
+
+  const pendingEarnings = approvalsData?.pendingEarnings || [];
+  const pendingExpenses = approvalsData?.pendingExpenses || [];
+  const allEarnings = approvalsData?.allEarnings || [];
+
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -30,32 +36,6 @@ export default function Approvals() {
   const [actionNotes, setActionNotes] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
   const [viewAttachment, setViewAttachment] = useState(null);
-
-  useEffect(() => {
-    loadApprovals();
-  }, []);
-
-  const loadApprovals = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const [eRes, xRes] = await Promise.all([
-        submissionService.getEarnings({ status: 'PENDING' }),
-        submissionService.getExpenses({ status: 'PENDING' }),
-      ]);
-      setPendingEarnings(eRes.data.results || eRes.data);
-      setPendingExpenses(xRes.data.results || xRes.data);
-
-      // Load all earnings for audit logs view
-      const allRes = await submissionService.getEarnings();
-      setAllEarnings(allRes.data.results || allRes.data);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to fetch approval queue from server.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleActionConfirm = async () => {
     if (!actionItem) return;
@@ -96,7 +76,7 @@ export default function Approvals() {
 
       setActionItem(null);
       setActionNotes('');
-      loadApprovals();
+      queryClient.invalidateQueries({ queryKey: queryKeys.approvals });
     } catch (err) {
       console.error(err);
       setError(err.message || err.response?.data?.error || 'Action failed.');

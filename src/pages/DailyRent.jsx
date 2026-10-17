@@ -20,10 +20,9 @@ import {
 
 export default function DailyRent() {
   const { user, isAdmin } = useAuth();
-  const rentParams = useMemo(() => ({ payment_mode: 'FIXED_RENT' }), []);
   const { data: vehiclesRaw, isLoading: vehiclesLoading } = useFleetVehicles();
   const { data: driversRaw, isLoading: driversLoading } = useDrivers();
-  const { data: rentRaw, isLoading: rentLoading } = useCalculations(rentParams);
+  const { data: rentRaw, isLoading: rentLoading } = useCalculations();
 
   const vehicles = useMemo(() => {
     const list = vehiclesRaw?.results ?? vehiclesRaw ?? [];
@@ -37,7 +36,8 @@ export default function DailyRent() {
 
   const rentRecords = useMemo(() => {
     const list = rentRaw?.results ?? rentRaw ?? [];
-    return Array.isArray(list) ? list : [];
+    const arr = Array.isArray(list) ? list : [];
+    return arr.filter((c) => c.payment_mode === 'FIXED_RENT');
   }, [rentRaw]);
 
   const loading = vehiclesLoading || rentLoading || (isAdmin && driversLoading);
@@ -106,8 +106,10 @@ export default function DailyRent() {
       await fleetService.createCalculation(payload);
       setSuccessMsg(`Daily Rent record for ${formData.working_day_type === 'HALF_DAY' ? 'Half Day (₹650)' : 'Full Day (₹1,200)'} submitted successfully!`);
       setTimeout(() => setSuccessMsg(''), 5000);
-      // Invalidate shared cache so all pages see the new entry
+      // Invalidate shared cache so all pages and financial reports see the new entry
       queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       const detail = err.response?.data?.detail || err.response?.data?.non_field_errors?.[0];
@@ -123,13 +125,9 @@ export default function DailyRent() {
       await fleetService.markStatus(calcId, newStatus);
       setSuccessMsg(`Rent record #${calcId} updated to ${newStatus === 'PAID' ? 'Paid' : 'Pending'}.`);
       setTimeout(() => setSuccessMsg(''), 4000);
-      // Optimistic cache update
-      queryClient.setQueryData([...CALCULATIONS_QUERY_KEY, { payment_mode: 'FIXED_RENT' }], (old) => {
-        if (!old) return old;
-        const list = old?.results ? old.results : old;
-        const updated = list.map((c) => (c.id === calcId ? { ...c, status: newStatus } : c));
-        return old?.results ? { ...old, results: updated } : updated;
-      });
+      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       setError('Failed to update payment status.');

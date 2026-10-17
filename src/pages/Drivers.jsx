@@ -235,6 +235,7 @@ export default function Drivers() {
       queryClient.invalidateQueries({ queryKey: ['calculations'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+      queryClient.invalidateQueries({ queryKey: ['financial'] });
     } catch (err) {
       console.error(err);
       alert('Failed to update payment status.');
