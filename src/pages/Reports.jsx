@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { reportService } from '../services/api';
-import { useFinancialReport } from '../hooks/useFinancialReport';
+import { useFinancialReport, FINANCIAL_QUERY_KEY } from '../hooks/useFinancialReport';
+import { queryClient } from '../queryClient';
 import {
   BarChart3,
   Calendar,
@@ -12,30 +13,56 @@ import {
   Wrench,
   Car,
   AlertCircle,
-  FileText
+  FileText,
+  RotateCcw,
+  Sparkles
 } from 'lucide-react';
 
-export default function Reports() {
-  const today = new Date().toISOString().split('T')[0];
-  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .split('T')[0];
+const formatLocalYMD = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
 
-  const [startDate, setStartDate] = useState(firstOfMonth);
-  const [endDate, setEndDate] = useState(today);
+export default function Reports() {
+  const now = new Date();
+  const todayStr = formatLocalYMD(now);
+  const firstOfMonthStr = formatLocalYMD(new Date(now.getFullYear(), now.getMonth(), 1));
+
+  const [startDate, setStartDate] = useState(firstOfMonthStr);
+  const [endDate, setEndDate] = useState(todayStr);
   const [exportType, setExportType] = useState('earnings');
 
-  const reportParams = useMemo(() => ({
-    start_date: startDate,
-    end_date: endDate,
-  }), [startDate, endDate]);
+  const reportParams = useMemo(() => {
+    const p = {};
+    if (startDate) p.start_date = startDate;
+    if (endDate) p.end_date = endDate;
+    return p;
+  }, [startDate, endDate]);
 
-  const { data: report, isLoading: loading, error: queryError } = useFinancialReport(reportParams);
+  const { data: report, isLoading: loading, error: queryError, refetch } = useFinancialReport(reportParams);
   const error = queryError ? 'Failed to generate financial reports.' : '';
 
   const handleExport = (format) => {
     const url = reportService.getExportUrl(exportType, format, startDate, endDate);
     window.open(url, '_blank');
+  };
+
+  const setPreset = (preset) => {
+    const d = new Date();
+    if (preset === 'THIS_MONTH') {
+      setStartDate(firstOfMonthStr);
+      setEndDate(todayStr);
+    } else if (preset === 'LAST_30') {
+      const past30 = new Date();
+      past30.setDate(d.getDate() - 30);
+      setStartDate(formatLocalYMD(past30));
+      setEndDate(todayStr);
+    } else if (preset === 'ALL_TIME') {
+      setStartDate('');
+      setEndDate('');
+    }
   };
 
   const formatINR = (val) => {
@@ -49,14 +76,16 @@ export default function Reports() {
   const summary = report?.summary || {};
   const vehicles = report?.vehicle_breakdown || [];
   const drivers = report?.driver_breakdown || [];
+  const hasData = (summary.gross_uber_earnings || 0) > 0 || (summary.rent_revenue || 0) > 0 || vehicles.length > 0;
 
   return (
     <div className="space-y-6">
       {/* Header & Export Dropdowns */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-            Financial P&L Statements & Exports
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+            <span>Financial P&L Statements & Exports</span>
+            {loading && <RotateCcw className="w-4 h-4 text-emerald-600 animate-spin" />}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
             Audit-ready profit & loss reporting with Excel and CSV data exports for Kerala fleet operations.
@@ -65,6 +94,36 @@ export default function Reports() {
 
         {/* Date Filters & Export Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Presets */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-xl text-xs font-semibold">
+            <button
+              onClick={() => setPreset('THIS_MONTH')}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors ${
+                startDate === firstOfMonthStr && endDate === todayStr
+                  ? 'bg-white text-emerald-800 shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              This Month
+            </button>
+            <button
+              onClick={() => setPreset('LAST_30')}
+              className="px-2.5 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Last 30 Days
+            </button>
+            <button
+              onClick={() => setPreset('ALL_TIME')}
+              className={`px-2.5 py-1.5 rounded-lg transition-colors ${
+                !startDate && !endDate
+                  ? 'bg-white text-emerald-800 shadow-sm font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All Time
+            </button>
+          </div>
+
           <div className="flex items-center space-x-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs shadow-sm">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <input
@@ -112,9 +171,34 @@ export default function Reports() {
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center space-x-2">
-          <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-          <span>{error}</span>
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="px-2.5 py-1 rounded bg-rose-100 hover:bg-rose-200 text-rose-900 font-bold"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !hasData && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>
+              No calculations found for {startDate ? startDate : 'the start'} to {endDate ? endDate : 'today'}. Try viewing all-time records.
+            </span>
+          </div>
+          <button
+            onClick={() => setPreset('ALL_TIME')}
+            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold whitespace-nowrap active:scale-95 transition-all"
+          >
+            Show All Time Records
+          </button>
         </div>
       )}
 
