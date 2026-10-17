@@ -74,9 +74,7 @@ export default function Drivers() {
     license_expiry: '',
     daily_rent_amount: '1200.00',
     assigned_vehicle: '',
-    upi_id: '',
-    bank_account_number: '',
-    bank_ifsc_code: '',
+
     emergency_contact_name: '',
     emergency_contact_phone: '',
     is_active: true,
@@ -96,9 +94,7 @@ export default function Drivers() {
       license_expiry: '',
       daily_rent_amount: '1200.00',
       assigned_vehicle: '',
-      upi_id: '',
-      bank_account_number: '',
-      bank_ifsc_code: '',
+
       emergency_contact_name: '',
       emergency_contact_phone: '',
       is_active: true,
@@ -129,9 +125,7 @@ export default function Drivers() {
       license_expiry: licenseExpiry,
       daily_rent_amount: d.daily_rent_amount || '1200.00',
       assigned_vehicle: d.assigned_vehicle || '',
-      upi_id: d.upi_id || '',
-      bank_account_number: d.bank_account_number || '',
-      bank_ifsc_code: d.bank_ifsc_code || '',
+
       emergency_contact_name: d.emergency_contact_name || '',
       emergency_contact_phone: d.emergency_contact_phone || '',
       is_active: d.is_active,
@@ -171,9 +165,7 @@ export default function Drivers() {
       if (!payload.license_expiry) payload.license_expiry = null;
       if (!payload.emergency_contact_phone) payload.emergency_contact_phone = null;
       if (!payload.emergency_contact_name) payload.emergency_contact_name = null;
-      if (!payload.bank_account_number) payload.bank_account_number = null;
-      if (!payload.bank_ifsc_code) payload.bank_ifsc_code = null;
-      if (!payload.upi_id) payload.upi_id = null;
+
 
       if (editDriver) {
         await driverService.update(editDriver.id, payload);
@@ -625,40 +617,7 @@ export default function Drivers() {
                 </select>
               </div>
 
-              {/* UPI ID & Bank Details */}
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">UPI ID for Payouts</label>
-                <input
-                  type="text"
-                  placeholder="e.g. driver@oksbi"
-                  value={formData.upi_id}
-                  onChange={(e) => setFormData({ ...formData, upi_id: e.target.value })}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono"
-                />
-              </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Bank Account No.</label>
-                  <input
-                    type="text"
-                    placeholder="Account number"
-                    value={formData.bank_account_number}
-                    onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Bank IFSC Code</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. SBIN0001234"
-                    value={formData.bank_ifsc_code}
-                    onChange={(e) => setFormData({ ...formData, bank_ifsc_code: e.target.value.toUpperCase() })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 font-mono uppercase"
-                  />
-                </div>
-              </div>
 
               {/* Emergency Contact */}
               <div className="grid grid-cols-2 gap-3">
