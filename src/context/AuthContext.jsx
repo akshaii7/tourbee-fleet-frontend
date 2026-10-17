@@ -7,7 +7,10 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => authService.getCurrentUser());
-  const [loading, setLoading] = useState(true);
+
+  // If we already have a user from localStorage, skip the loading gate immediately.
+  // The useMe query will silently refresh the profile in the background.
+  const [loading, setLoading] = useState(() => !authService.getCurrentUser());
 
   const { data: profileData, isLoading: profileLoading } = useMe();
 
@@ -15,6 +18,7 @@ export const AuthProvider = ({ children }) => {
     if (profileData) {
       setUser(profileData);
     }
+    // Clear loading once the profile fetch settles (success, error, or disabled)
     if (!profileLoading) {
       setLoading(false);
     }
