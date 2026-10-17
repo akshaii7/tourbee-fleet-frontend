@@ -37,14 +37,10 @@ export default function Drivers() {
   const vehicles = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];
   const loading = driversLoading || vehiclesLoading;
 
-  const [drivers, setDrivers] = useState(() => driversList);
-  
-  // Keep local drivers state in sync with query cache when not overridden by optimistic updates
-  React.useEffect(() => {
-    if (driversList && driversList.length > 0) {
-      setDrivers(driversList);
-    }
-  }, [driversList]);
+  const [optimisticStatus, setOptimisticStatus] = useState({});
+  const drivers = driversList.map((d) => 
+    optimisticStatus[d.id] !== undefined ? { ...d, is_active: optimisticStatus[d.id] } : d
+  );
 
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('ALL');
@@ -137,14 +133,13 @@ export default function Drivers() {
   const handleToggleActive = async (d) => {
     try {
       const nextStatus = !d.is_active;
+      setOptimisticStatus((prev) => ({ ...prev, [d.id]: nextStatus }));
       await driverService.update(d.id, { is_active: nextStatus });
-      setDrivers((prev) =>
-        prev.map((item) => (item.id === d.id ? { ...item, is_active: nextStatus } : item))
-      );
       queryClient.invalidateQueries({ queryKey: ['drivers'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
     } catch (err) {
+      setOptimisticStatus((prev) => ({ ...prev, [d.id]: d.is_active }));
       console.error(err);
       alert('Failed to update driver status.');
     }
