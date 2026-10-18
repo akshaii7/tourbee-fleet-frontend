@@ -6,8 +6,7 @@ import {
   Lock,
   User,
   AlertCircle,
-  ArrowRight,
-  ShieldCheck
+  ArrowRight
 } from 'lucide-react';
 
 export default function Login() {
@@ -41,13 +40,6 @@ export default function Login() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillAdminCredentials = () => {
-    setLoginRole('ADMIN');
-    setUsername('admin');
-    setPassword('TourBee@2026');
-    setError('');
   };
 
   return (
@@ -162,19 +154,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {loginRole === 'ADMIN' && (
-            <div className="mt-4 pt-4 border-t border-slate-800/80 text-center">
-              <button
-                type="button"
-                onClick={fillAdminCredentials}
-                className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors inline-flex items-center space-x-1.5 py-1.5 px-3 rounded-lg bg-emerald-950/40 border border-emerald-800/50 hover:bg-emerald-900/40"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>One-Click: Fill Admin Credentials</span>
-              </button>
-            </div>
-          )}
 
         </div>
 
