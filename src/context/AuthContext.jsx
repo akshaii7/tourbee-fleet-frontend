@@ -37,11 +37,11 @@ export const AuthProvider = ({ children }) => {
       }).catch(() => {});
       queryClient.prefetchQuery({
         queryKey: ['drivers'],
-        queryFn: () => import('../services/api').then(m => m.driverService.getAll()),
+        queryFn: () => import('../services/api').then(m => m.driverService.getAll().then(res => res.data?.results ?? res.data)),
       }).catch(() => {});
       queryClient.prefetchQuery({
         queryKey: ['vehicles'],
-        queryFn: () => import('../services/api').then(m => m.vehicleService.getAll()),
+        queryFn: () => import('../services/api').then(m => m.vehicleService.getAll().then(res => res.data)),
       }).catch(() => {});
     }, 100);
 
