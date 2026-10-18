@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 
 export default function Drivers() {
-  const { data: driversData, isLoading: driversLoading } = useDrivers();
+  const { data: driversData, isLoading: driversLoading, isError: driversError, refetch: refetchDrivers } = useDrivers();
   const { data: vehiclesData, isLoading: vehiclesLoading } = useVehicles();
 
   const driversRaw = driversData?.results ?? driversData?.data ?? driversData ?? [];
@@ -306,7 +306,32 @@ export default function Drivers() {
         </div>
       </div>
 
-      {/* Drivers Table */}
+      {/* Loading State — only shown during initial load with no cached data */}
+      {loading && driversList.length === 0 && !driversError && (
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-16 text-center">
+          <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-sm font-semibold text-slate-500">Loading drivers...</p>
+          <p className="text-xs text-slate-400 mt-1">This may take a moment if the server is starting up.</p>
+        </div>
+      )}
+
+      {/* Error State — fetch failed, show retry button */}
+      {driversError && driversList.length === 0 && (
+        <div className="bg-white rounded-3xl border border-rose-200 shadow-sm p-10 text-center">
+          <AlertCircle className="w-10 h-10 text-rose-400 mx-auto mb-3" />
+          <p className="text-sm font-bold text-rose-800 mb-1">Failed to load drivers</p>
+          <p className="text-xs text-slate-500 mb-4">The server may be temporarily unavailable. Please try again.</p>
+          <button
+            onClick={() => refetchDrivers()}
+            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md transition-all active:scale-95"
+          >
+            <span>Retry</span>
+          </button>
+        </div>
+      )}
+
+      {/* Drivers Table — shown when we have data (or finished loading with empty result) */}
+      {(!loading || driversList.length > 0) && !driversError && (
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-600">
@@ -416,7 +441,14 @@ export default function Drivers() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {filtered.length === 0 && driversList.length === 0 && (
+                <tr>
+                  <td colSpan="7" className="px-5 py-10 text-center text-slate-400">
+                    No drivers found. Add your first driver using the button above.
+                  </td>
+                </tr>
+              )}
+              {filtered.length === 0 && driversList.length > 0 && (
                 <tr>
                   <td colSpan="7" className="px-5 py-10 text-center text-slate-400">
                     No drivers match the current filters.
@@ -427,6 +459,7 @@ export default function Drivers() {
           </table>
         </div>
       </div>
+      )}
 
       {/* Driver Add / Edit Modal */}
       {showModal && (
