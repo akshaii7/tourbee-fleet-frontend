@@ -30,8 +30,9 @@ export default function Drivers() {
   const { data: driversData, isLoading: driversLoading, isError: driversError, refetch: refetchDrivers } = useDrivers();
   const { data: vehiclesData, isLoading: vehiclesLoading } = useVehicles();
 
-  const driversRaw = driversData?.results ?? driversData?.data ?? driversData ?? [];
-  const driversList = Array.isArray(driversRaw) ? driversRaw : [];
+  // useDrivers always returns a normalised plain array (never a paginated envelope).
+  // Safe-guard against undefined while the query is loading.
+  const driversList = Array.isArray(driversData) ? driversData : [];
 
   const vehiclesRaw = vehiclesData?.results ?? vehiclesData?.data ?? vehiclesData ?? [];
   const vehicles = Array.isArray(vehiclesRaw) ? vehiclesRaw : [];

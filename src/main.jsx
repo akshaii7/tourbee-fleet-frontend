@@ -15,7 +15,7 @@ const persister = createSyncStoragePersister({
 const persistOptions = {
   persister,
   maxAge: 1000 * 60 * 60 * 24, // 24 hours
-  buster: '1.4.0',
+  buster: '1.5.0',
   dehydrateOptions: {
     shouldDehydrateQuery: (query) => {
       // Exclude auth/user info from persisted storage

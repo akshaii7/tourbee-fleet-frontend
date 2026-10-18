@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { authService } from '../services/api';
 import { useMe } from '../hooks/useMe';
 import { queryClient } from '../queryClient';
+import { queryKeys } from '../queryKeys';
+import { normalizeDriversResponse } from '../hooks/useDrivers';
 
 const AuthContext = createContext(null);
 
@@ -27,23 +29,38 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     const data = await authService.login(username, password);
     setUser(data.user);
-    queryClient.setQueryData(['me'], data.user);
+    queryClient.setQueryData(queryKeys.me, data.user);
 
-    // Warm up critical cache in background
+    // Warm up critical caches in the background after login.
+    // We use the same queryFn and normalisation as the hooks themselves
+    // so the cached shape is always identical — preventing the "0 drivers"
+    // bug caused by shape mismatches between the prefetch and the hook query.
     setTimeout(() => {
+      // Drivers cache — normalise exactly as useDrivers does
       queryClient.prefetchQuery({
-        queryKey: ['dashboard', {}],
-        queryFn: () => authService.getDashboard ? authService.getDashboard({}) : null,
+        queryKey: queryKeys.drivers,
+        queryFn: () =>
+          import('../services/api').then((m) =>
+            m.driverService.getAll().then((res) => normalizeDriversResponse(res.data))
+          ),
+        staleTime: 60000,
       }).catch(() => {});
+
+      // Vehicles cache
       queryClient.prefetchQuery({
-        queryKey: ['drivers'],
-        queryFn: () => import('../services/api').then(m => m.driverService.getAll().then(res => res.data?.results ?? res.data)),
+        queryKey: queryKeys.vehicles,
+        queryFn: () =>
+          import('../services/api').then((m) =>
+            m.vehicleService.getAll().then((res) => {
+              const d = res.data;
+              if (d && Array.isArray(d.results)) return d.results;
+              if (Array.isArray(d)) return d;
+              return [];
+            })
+          ),
+        staleTime: 60000,
       }).catch(() => {});
-      queryClient.prefetchQuery({
-        queryKey: ['vehicles'],
-        queryFn: () => import('../services/api').then(m => m.vehicleService.getAll().then(res => res.data)),
-      }).catch(() => {});
-    }, 100);
+    }, 150);
 
     return data;
   };

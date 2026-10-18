@@ -9,8 +9,11 @@ export const DRIVERS_QUERY_KEY = queryKeys.drivers;
  * Supports both paginated { results: [] } and flat array [] responses.
  * Throws on non-2xx / malformed payloads so React Query treats them as errors
  * rather than silently returning an empty list.
+ *
+ * Exported so other callers (e.g. prefetchQuery in AuthContext) can use
+ * the exact same normalisation and avoid cache-shape mismatches.
  */
-function normalizeDriversResponse(data) {
+export function normalizeDriversResponse(data) {
   // { results: [...] }  — DRF paginated response
   if (data && typeof data === 'object' && Array.isArray(data.results)) {
     return data.results;
@@ -41,12 +44,24 @@ function retryDelay(attemptIndex) {
 }
 
 export function useDrivers() {
+  // Only run the query when a valid access token exists.
+  // This prevents a race condition where the query fires before auth
+  // is established, receives a 401, triggers the refresh interceptor,
+  // potentially fails the refresh, logs the user out, and stores an
+  // empty/error result in the cache that overwrites valid driver data.
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem('tourbee_access_token')
+      : null;
+
   const query = useQuery({
     queryKey: queryKeys.drivers,
     queryFn: async () => {
       const res = await driverService.getAll();
       return normalizeDriversResponse(res.data);
     },
+    // *** FIX: Only fetch when authenticated ***
+    enabled: !!token,
     staleTime: 60000,          // Data considered fresh for 60 seconds
     refetchOnMount: true,      // Refetch on mount if stale
     retry: shouldRetry,

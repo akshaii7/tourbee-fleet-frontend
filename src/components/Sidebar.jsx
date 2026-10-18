@@ -2,6 +2,8 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { queryClient } from '../queryClient';
+import { queryKeys } from '../queryKeys';
+import { normalizeDriversResponse } from '../hooks/useDrivers';
 import {
   LayoutDashboard,
   Users,
@@ -109,23 +111,38 @@ export default function Sidebar({ mobileOpen, setMobileOpen, pendingCount = 0 })
           const handlePrefetch = () => {
             if (link.path === '/dashboard') {
               queryClient.prefetchQuery({
-                queryKey: ['dashboard', {}],
+                queryKey: queryKeys.dashboard(),
                 queryFn: () => import('../services/api').then(m => m.authService.getDashboard ? m.authService.getDashboard({}) : null),
+                staleTime: 30000,
               }).catch(() => {});
             } else if (link.path === '/drivers') {
+              // FIX: must return the same shape as useDrivers (normalised flat array),
+              // not the raw Axios response. Previously stored {data,status,headers,...}
+              // which made Array.isArray(driversData) false → driversList = [] → "0 drivers".
               queryClient.prefetchQuery({
-                queryKey: ['drivers'],
-                queryFn: () => import('../services/api').then(m => m.driverService.getAll()),
+                queryKey: queryKeys.drivers,
+                queryFn: () =>
+                  import('../services/api').then(m =>
+                    m.driverService.getAll().then(res => normalizeDriversResponse(res.data))
+                  ),
+                staleTime: 60000, // matches useDrivers staleTime — skip prefetch if data is fresh
               }).catch(() => {});
             } else if (link.path === '/vehicles') {
+              // FIX: useVehicles stores res.data (the DRF envelope {count, results:[...]}),
+              // not res itself. Previously stored the full Axios object.
               queryClient.prefetchQuery({
-                queryKey: ['vehicles'],
-                queryFn: () => import('../services/api').then(m => m.vehicleService.getAll()),
+                queryKey: queryKeys.vehicles,
+                queryFn: () =>
+                  import('../services/api').then(m =>
+                    m.vehicleService.getAll().then(res => res.data)
+                  ),
+                staleTime: 60000, // matches useVehicles staleTime
               }).catch(() => {});
             } else if (link.path === '/submissions' || link.path === '/daily-calculation') {
               queryClient.prefetchQuery({
-                queryKey: ['calculations'],
-                queryFn: () => import('../services/api').then(m => m.calculationService.getAll()),
+                queryKey: queryKeys.calculations,
+                queryFn: () => import('../services/api').then(m => m.calculationService?.getAll()),
+                staleTime: 30000,
               }).catch(() => {});
             }
           };
