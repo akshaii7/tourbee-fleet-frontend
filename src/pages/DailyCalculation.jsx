@@ -18,7 +18,12 @@ import {
   Clock,
   Car,
   User,
-  ExternalLink
+  ExternalLink,
+  Pencil,
+  Trash2,
+  FileImage,
+  Camera,
+  X
 } from 'lucide-react';
 
 export default function DailyCalculation() {
@@ -32,6 +37,10 @@ export default function DailyCalculation() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Edit / Delete state (Part B)
+  const [editingId, setEditingId] = useState(null); // null = create mode, number = edit mode
+  const [deleting, setDeleting] = useState(false);
 
   // Mode Selection: 'REVENUE_SHARING' (50% PROFIT-SHARING MODE) or 'FIXED_RENT' (FIXED DAILY RENT MODE)
   const [paymentMode, setPaymentMode] = useState('REVENUE_SHARING');
@@ -183,6 +192,58 @@ export default function DailyCalculation() {
     }
   };
 
+  // Part B: pre-fill form for editing an existing Pending entry
+  const handleEditClick = (c) => {
+    setEditingId(c.id);
+    setPaymentMode(c.payment_mode || 'REVENUE_SHARING');
+    setWorkingDayType(c.working_day_type || 'FULL_DAY');
+    // Handle DD-MM-YYYY or ISO date format for HTML date input
+    let formattedDate = c.date_iso || c.date;
+    if (formattedDate && formattedDate.includes('-')) {
+      const parts = formattedDate.split('-');
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        // DD-MM-YYYY -> YYYY-MM-DD
+        formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+
+    setFormData({
+      driver: c.driver,
+      vehicle: c.vehicle,
+      date: formattedDate,
+      total_uber_earnings: c.total_uber_earnings || c.A || '',
+      passenger_cash_collected: c.passenger_cash_collected || c.B || '',
+      cng_expense: c.cng_expense || c.E || '',
+      expenses: c.expenses || c.D || '',
+      refund: c.refund || c.F || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setError('');
+    setSuccess('');
+    setFormData({
+      driver: drivers[0]?.id || '',
+      vehicle: drivers[0]?.assigned_vehicle || (vehicles[0]?.id || ''),
+      date: new Date().toISOString().split('T')[0],
+      total_uber_earnings: '',
+      passenger_cash_collected: '',
+      cng_expense: '',
+      expenses: '',
+      refund: '',
+    });
+  };
+
+  // Part B+C: invalidate all affected caches after any write
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+    queryClient.invalidateQueries({ queryKey: ['financial'] });
+  };
+
   const handleSaveCalculation = async (e) => {
     e.preventDefault();
     if (!formData.driver) {
@@ -194,27 +255,39 @@ export default function DailyCalculation() {
     setSuccess('');
 
     try {
-      await fleetService.createCalculation({
-        driver: formData.driver,
-        vehicle: formData.vehicle,
-        date: formData.date,
-        payment_mode: paymentMode,
-        working_day_type: workingDayType,
-        total_uber_earnings: formData.total_uber_earnings || 0,
-        passenger_cash_collected: formData.passenger_cash_collected || 0,
-        cng_expense: formData.cng_expense || 0,
-        expenses: formData.expenses || 0,
-        refund: formData.refund || 0,
-      });
-      setSuccess('Daily calculation saved successfully!');
-      // Invalidate the shared calculations cache, dashboard, and financial reports
-      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['financial'] });
+      if (editingId) {
+        // Part B: PATCH existing Pending entry
+        await fleetService.updateCalculation(editingId, {
+          total_uber_earnings: formData.total_uber_earnings || 0,
+          passenger_cash_collected: formData.passenger_cash_collected || 0,
+          cng_expense: formData.cng_expense || 0,
+          expenses: formData.expenses || 0,
+          refund: formData.refund || 0,
+        });
+        setSuccess('Calculation updated successfully!');
+        setEditingId(null);
+      } else {
+        // Create new
+        await fleetService.createCalculation({
+          driver: formData.driver,
+          vehicle: formData.vehicle,
+          date: formData.date,
+          payment_mode: paymentMode,
+          working_day_type: workingDayType,
+          total_uber_earnings: formData.total_uber_earnings || 0,
+          passenger_cash_collected: formData.passenger_cash_collected || 0,
+          cng_expense: formData.cng_expense || 0,
+          expenses: formData.expenses || 0,
+          refund: formData.refund || 0,
+        });
+        setSuccess('Daily calculation saved successfully!');
+      }
+      // Part C: refresh all dependent caches
+      invalidateAll();
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
-      let msg = 'Failed to save daily calculation.';
+      let msg = editingId ? 'Failed to update calculation.' : 'Failed to save daily calculation.';
       if (resData) {
         if (typeof resData === 'string') msg = resData;
         else if (resData.error) msg = resData.error;
@@ -223,6 +296,26 @@ export default function DailyCalculation() {
       setError(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Part B+C: delete a Pending entry
+  const handleDeleteCalculation = async (calcId) => {
+    if (!window.confirm('Delete this calculation? This cannot be undone.')) return;
+    setDeleting(true);
+    setError('');
+    try {
+      await fleetService.deleteCalculation(calcId);
+      setSuccess('Calculation deleted.');
+      // Part C: refresh all dependent caches
+      invalidateAll();
+    } catch (err) {
+      const resData = err.response?.data;
+      let msg = 'Failed to delete calculation.';
+      if (resData?.detail) msg = resData.detail;
+      setError(msg);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -237,8 +330,7 @@ export default function DailyCalculation() {
         const updated = list.map((c) => (c.id === calcId ? { ...c, status: nextStatus } : c));
         return old?.results ? { ...old, results: updated } : updated;
       });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['financial'] });
+      invalidateAll();
     } catch (err) {
       console.error(err);
       alert('Failed to update status.');
@@ -363,8 +455,14 @@ export default function DailyCalculation() {
         {/* Left: Input Form */}
         <div className="lg:col-span-5 bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
           <h2 className="text-base font-bold text-slate-900 mb-4 pb-2 border-b border-slate-100 flex items-center justify-between">
-            <span>Daily Details</span>
-            <span className="text-[11px] font-normal text-slate-400">Live Auto-Calculation</span>
+            <span>{editingId ? '✏️ Edit Calculation' : 'Daily Details'}</span>
+            {editingId ? (
+              <button type="button" onClick={handleCancelEdit} className="text-[11px] font-semibold text-rose-500 hover:text-rose-700 flex items-center space-x-1">
+                <X className="w-3 h-3" /><span>Cancel Edit</span>
+              </button>
+            ) : (
+              <span className="text-[11px] font-normal text-slate-400">Live Auto-Calculation</span>
+            )}
           </h2>
 
           <form onSubmit={handleSaveCalculation} className="space-y-4 text-xs">
@@ -511,10 +609,12 @@ export default function DailyCalculation() {
             <button
               type="submit"
               disabled={saving}
-              className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50 mt-2"
+              className={`w-full py-3 px-4 rounded-xl text-white font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 disabled:opacity-50 mt-2 ${
+                editingId ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
             >
               <Save className="w-4 h-4" />
-              <span>{saving ? 'Saving...' : 'Save Calculation'}</span>
+              <span>{saving ? (editingId ? 'Updating...' : 'Saving...') : (editingId ? 'Update Calculation' : 'Save Calculation')}</span>
             </button>
           </form>
         </div>
@@ -668,6 +768,7 @@ export default function DailyCalculation() {
                 <th className="px-4 py-3">Uber Earnings</th>
                 <th className="px-4 py-3">Driver Salary</th>
                 <th className="px-4 py-3">Final GPay / Rent</th>
+                <th className="px-4 py-3">Docs</th>
                 <th className="px-4 py-3">Payment Status</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
@@ -701,6 +802,41 @@ export default function DailyCalculation() {
                     <td className="px-4 py-3.5 font-black text-slate-900">
                       {isFixed ? formatINR(c.rent_due) : formatINR(c.final_gpay_amount)}
                     </td>
+                    {/* Part A: CNG Bill + Uber Screenshot buttons */}
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center space-x-1.5">
+                        {c.cng_bill_url ? (
+                          <a
+                            href={c.cng_bill_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="View CNG Bill"
+                            className="inline-flex items-center px-1.5 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-700 transition-colors"
+                          >
+                            <FileImage className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-1 rounded bg-slate-100 text-slate-300" title="No CNG bill">
+                            <FileImage className="w-3 h-3" />
+                          </span>
+                        )}
+                        {c.uber_screenshot_url ? (
+                          <a
+                            href={c.uber_screenshot_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="View Uber Proof"
+                            className="inline-flex items-center px-1.5 py-1 rounded bg-blue-100 hover:bg-blue-200 text-blue-700 transition-colors"
+                          >
+                            <Camera className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-1 rounded bg-slate-100 text-slate-300" title="No Uber proof">
+                            <Camera className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3.5">
                       {isPaid ? (
                         <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800">
@@ -715,18 +851,41 @@ export default function DailyCalculation() {
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-right">
-                      {isAdmin && (
-                        <button
-                          onClick={() => handleStatusToggle(c.id, c.status)}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                            isPaid
-                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                              : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
-                          }`}
-                        >
-                          {isPaid ? 'Mark Pending' : 'Mark Paid'}
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end space-x-1.5">
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleStatusToggle(c.id, c.status)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                              isPaid
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                            }`}
+                          >
+                            {isPaid ? 'Mark Pending' : 'Mark Paid'}
+                          </button>
+                        )}
+                        {/* Part B: Edit button — Pending only */}
+                        {!isPaid && (
+                          <button
+                            onClick={() => handleEditClick(c)}
+                            title="Edit"
+                            className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+                          >
+                            <Pencil className="w-3 h-3" />
+                          </button>
+                        )}
+                        {/* Part B: Delete button — Pending only, admin only */}
+                        {!isPaid && isAdmin && (
+                          <button
+                            onClick={() => handleDeleteCalculation(c.id)}
+                            title="Delete"
+                            disabled={deleting}
+                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

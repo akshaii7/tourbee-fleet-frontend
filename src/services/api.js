@@ -204,6 +204,7 @@ export const fleetService = {
     headers: { 'Content-Type': 'multipart/form-data' }
   }),
   updateCalculation: (id, data) => api.patch(`/fleet/calculations/${id}/`, data),
+  deleteCalculation: (id) => api.delete(`/fleet/calculations/${id}/`),
   markStatus: (id, status) => api.post(`/fleet/calculations/${id}/mark_status/`, { status }),
   lockCalculation: (id) => api.post(`/fleet/calculations/${id}/lock/`),
   unlockCalculation: (id, data) => api.post(`/fleet/calculations/${id}/unlock/`, data),
