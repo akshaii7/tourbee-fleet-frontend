@@ -15,9 +15,10 @@ export function useDashboard(params = {}, { enabled = true } = {}) {
     },
     placeholderData: keepPreviousData,
     enabled,
-    // Part D: retry twice with increasing delay to survive Render cold-start (~15s spin-up)
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    // Part D: retry 3 times with backoff to survive Render cold-start (~30s spin-up)
+    retry: 3,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10000),
+    staleTime: 30000,
   });
 
   return query;
