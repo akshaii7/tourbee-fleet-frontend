@@ -131,11 +131,9 @@ export default function Submissions() {
     // Step 4: TourBee Share = Net Profit × 50%
     const tourbee_share = profit_amount / 2;
 
-    // Step 5: Final GPay = TourBee Share - Wallet Difference - Refund
-    // TourBee is owed their 50%, but Uber already settled wallet_difference
-    // to the company, and refund reduces what the driver owes.
-    const amount_after_wallet = tourbee_share - wallet_difference;
-    const final_gpay_amount = amount_after_wallet - F;
+    // Step 5: Final GPay = Net Profit - Wallet Difference - Refund + Other Expenses
+    const amount_after_wallet = profit_amount - wallet_difference;
+    const final_gpay_amount = amount_after_wallet - F + D;
 
     setLiveBreakdown({
       wallet_difference,
@@ -684,7 +682,7 @@ export default function Submissions() {
           </div>
 
           <div className="mt-4 p-3 bg-slate-800/60 rounded-xl text-[11px] text-slate-400 border border-slate-700/60">
-            <strong>Formula:</strong> Final GPay = TourBee Share (50%) − Wallet Difference − Refund
+            <strong>Formula:</strong> Final GPay = Net Profit − Wallet Difference − Refund + Other Expenses
           </div>
         </div>
       </div>

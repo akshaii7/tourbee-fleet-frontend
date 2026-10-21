@@ -145,9 +145,8 @@ export default function DailyCalculation() {
         const profit = uber - cng - exp;
         const dSal = profit / 2;
         const tShare = profit / 2;
-        // Corrected: settlement base is TourBee's 50% share, not full profit
-        const afterWallet = tShare - walletDiff;
-        const finalGpay = afterWallet - ref;
+        const afterWallet = profit - walletDiff;
+        const finalGpay = afterWallet - ref + exp;
 
         setBreakdown({
           payment_mode: 'REVENUE_SHARING',

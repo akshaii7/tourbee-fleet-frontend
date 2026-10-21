@@ -6,7 +6,8 @@ import {
   Lock,
   User,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function Login() {
