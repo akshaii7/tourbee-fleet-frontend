@@ -21,7 +21,10 @@ import {
   RotateCcw,
   Sparkles,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  Pencil,
+  Trash2,
+  X
 } from 'lucide-react';
 
 export default function Submissions() {
@@ -57,6 +60,10 @@ export default function Submissions() {
 
   // File Preview Modal
   const [previewDoc, setPreviewDoc] = useState(null);
+
+  // Edit / Delete State
+  const [editingId, setEditingId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // The 9 Required Fields for 50% Mode
   const todayStr = new Date().toISOString().split('T')[0];
@@ -196,12 +203,30 @@ export default function Submissions() {
         data.append('uber_screenshot_file', uberScreenshotFile);
       }
 
-      const res = await fleetService.createSubmissionMultipart(data);
-      const saved = res.data;
-
-      // Display the Results Screen
-      setSubmittedResult(saved);
-      setSuccessMsg('Daily Uber earnings submitted successfully!');
+      if (editingId) {
+        // Part B: PATCH existing calculation
+        const payload = {
+          date: formData.date,
+          vehicle: formData.vehicle,
+          total_uber_earnings: formData.total_uber_earnings || 0,
+          passenger_cash_collected: formData.passenger_cash_collected || 0,
+          cng_expense: formData.cng_expense || 0,
+          expenses: formData.expenses || 0,
+          refund: formData.refund || 0,
+        };
+        if (isAdmin && formData.driver) {
+          payload.driver = formData.driver;
+        }
+        const res = await fleetService.updateCalculation(editingId, payload);
+        setSubmittedResult(res.data);
+        setSuccessMsg('Calculation updated successfully!');
+        setEditingId(null);
+      } else {
+        const res = await fleetService.createSubmissionMultipart(data);
+        const saved = res.data;
+        setSubmittedResult(saved);
+        setSuccessMsg('Daily Uber earnings submitted successfully!');
+      }
 
       // Reset form
       setFormData((prev) => ({
@@ -215,10 +240,7 @@ export default function Submissions() {
       setCngBillFile(null);
       setUberScreenshotFile(null);
 
-      // Invalidate calculations, dashboard, and financial reports
-      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['financial'] });
+      invalidateAll();
     } catch (err) {
       console.error(err);
       const resData = err.response?.data;
@@ -260,15 +282,78 @@ export default function Submissions() {
     }
   };
 
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['salaryOverview'] });
+    queryClient.invalidateQueries({ queryKey: ['financial'] });
+  };
+
+  const handleEditClick = (c) => {
+    setEditingId(c.id);
+    let formattedDate = c.date_iso || c.date;
+    if (formattedDate && formattedDate.includes('-')) {
+      const parts = formattedDate.split('-');
+      if (parts[0].length === 2 && parts[2].length === 4) {
+        formattedDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+    }
+    setFormData({
+      driver: c.driver,
+      vehicle: c.vehicle,
+      date: formattedDate,
+      total_uber_earnings: c.total_uber_earnings || c.A || '',
+      passenger_cash_collected: c.passenger_cash_collected || c.B || '',
+      cng_expense: c.cng_expense || c.E || '',
+      expenses: c.expenses || c.D || '',
+      refund: c.refund || c.F || '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setError('');
+    setSuccessMsg('');
+    setFormData((prev) => ({
+      ...prev,
+      total_uber_earnings: '',
+      passenger_cash_collected: '',
+      cng_expense: '',
+      expenses: '',
+      refund: '',
+    }));
+  };
+
+  const handleDeleteCalculation = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this daily calculation? This will update all dashboard and salary totals.')) {
+      return;
+    }
+    setDeleting(true);
+    setError('');
+    try {
+      await fleetService.deleteCalculation(id);
+      setSuccessMsg('Calculation deleted successfully.');
+      setTimeout(() => setSuccessMsg(''), 4000);
+      if (editingId === id) {
+        handleCancelEdit();
+      }
+      invalidateAll();
+    } catch (err) {
+      console.error(err);
+      setError(err.response?.data?.detail || 'Failed to delete calculation.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleMarkStatus = async (calcId, currentStatus) => {
     const newStatus = currentStatus === 'PAID' ? 'PENDING' : 'PAID';
     try {
       await fleetService.markStatus(calcId, newStatus);
       setSuccessMsg(`Status updated to ${newStatus === 'PAID' ? 'Paid' : 'Pending'}.`);
       setTimeout(() => setSuccessMsg(''), 4000);
-      queryClient.invalidateQueries({ queryKey: CALCULATIONS_QUERY_KEY });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['financial'] });
+      invalidateAll();
     } catch (err) {
       console.error(err);
       setError('Failed to update status.');
@@ -432,9 +517,25 @@ export default function Submissions() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Form Container (7 Cols) */}
         <div className="lg:col-span-7 bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900 mb-1">Enter Daily Shift Details</h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-lg font-bold text-slate-900">
+              {editingId ? '✏️ Edit Daily Calculation' : 'Enter Daily Shift Details'}
+            </h2>
+            {editingId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="inline-flex items-center space-x-1 px-3 py-1 text-xs font-bold rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Cancel</span>
+              </button>
+            )}
+          </div>
           <p className="text-xs text-slate-500 mb-5">
-            Fill in the 7 input fields and upload the 2 mandatory verification documents.
+            {editingId
+              ? 'Update the shift values below and click Update Calculation. Formula will automatically recalculate.'
+              : 'Fill in the 7 input fields and upload the 2 mandatory verification documents.'}
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -619,9 +720,15 @@ export default function Submissions() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-sm rounded-2xl shadow-lg shadow-emerald-900/20 active:scale-[0.99] transition-all disabled:opacity-50"
+                className={`w-full py-3.5 px-4 font-extrabold text-sm rounded-2xl shadow-lg active:scale-[0.99] transition-all disabled:opacity-50 text-white ${
+                  editingId
+                    ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-900/20'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-emerald-900/20'
+                }`}
               >
-                {submitting ? 'Submitting & Calculating...' : 'Submit Daily Uber Details'}
+                {submitting
+                  ? (editingId ? 'Updating...' : 'Submitting & Calculating...')
+                  : (editingId ? 'Update Calculation' : 'Submit Daily Uber Details')}
               </button>
             </div>
           </form>
@@ -769,16 +876,39 @@ export default function Submissions() {
                     </td>
                     {isAdmin && (
                       <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => handleMarkStatus(c.id, c.status)}
-                          className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                            c.status === 'PAID'
-                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          }`}
-                        >
-                          {c.status === 'PAID' ? 'Mark Pending' : 'Mark Paid'}
-                        </button>
+                        <div className="flex items-center justify-center space-x-1.5">
+                          <button
+                            onClick={() => handleMarkStatus(c.id, c.status)}
+                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
+                              c.status === 'PAID'
+                                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                            }`}
+                          >
+                            {c.status === 'PAID' ? 'Mark Pending' : 'Mark Paid'}
+                          </button>
+                          {/* Part B: Edit button — Pending only */}
+                          {c.status !== 'PAID' && (
+                            <button
+                              onClick={() => handleEditClick(c)}
+                              title="Edit Calculation"
+                              className="p-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                          {/* Part B: Delete button — Pending only */}
+                          {c.status !== 'PAID' && (
+                            <button
+                              onClick={() => handleDeleteCalculation(c.id)}
+                              title="Delete Calculation"
+                              disabled={deleting}
+                              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors disabled:opacity-50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     )}
                   </tr>
