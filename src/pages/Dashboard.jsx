@@ -55,7 +55,7 @@ export default function Dashboard() {
     return p;
   }, [filters]);
 
-  const { data: metrics, isLoading: loading, isFetching, error: queryError, refetch } = useDashboard(cleanParams);
+  const { data: metrics, isPending, isFetching, error: queryError, refetch } = useDashboard(cleanParams);
   const { data: driversData } = useDrivers();
   const { data: vehiclesData } = useVehicles();
 
@@ -104,7 +104,7 @@ export default function Dashboard() {
     }).format(num);
   };
 
-  if ((loading || isFetching) && !metrics) {
+  if ((isPending || isFetching) && !metrics) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
