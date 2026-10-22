@@ -112,7 +112,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen, pendingCount = 0 })
             if (link.path === '/dashboard') {
               queryClient.prefetchQuery({
                 queryKey: queryKeys.dashboard(),
-                queryFn: () => import('../services/api').then(m => m.authService.getDashboard ? m.authService.getDashboard({}) : null),
+                queryFn: () =>
+                  import('../services/api').then(m =>
+                    m.fleetService.getFleetDashboard().then(res => res.data)
+                  ),
                 staleTime: 30000,
               }).catch(() => {});
             } else if (link.path === '/drivers') {
@@ -141,7 +144,10 @@ export default function Sidebar({ mobileOpen, setMobileOpen, pendingCount = 0 })
             } else if (link.path === '/submissions' || link.path === '/daily-calculation') {
               queryClient.prefetchQuery({
                 queryKey: queryKeys.calculations,
-                queryFn: () => import('../services/api').then(m => m.calculationService?.getAll()),
+                queryFn: () =>
+                  import('../services/api').then(m =>
+                    m.fleetService.getCalculations().then(res => res.data)
+                  ),
                 staleTime: 30000,
               }).catch(() => {});
             }

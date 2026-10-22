@@ -369,6 +369,15 @@ export default function Submissions() {
     }).format(num);
   };
 
+  const resolveDocUrl = (url) => {
+    if (!url) return '';
+    let clean = String(url).trim();
+    if (clean.startsWith('http://')) clean = 'https://' + clean.slice(7);
+    if (clean.startsWith('https://')) return clean;
+    const base = (import.meta.env.VITE_API_BASE_URL || 'https://tourbee-fleet-backend-1.onrender.com/api').replace(/\/api\/?$/, '');
+    return `${base}/${clean.replace(/^\//, '')}`;
+  };
+
   // Helper to load test example values
   const handleLoadTestExample = () => {
     setFormData((prev) => ({
@@ -844,7 +853,7 @@ export default function Submissions() {
                       <div className="flex items-center justify-center space-x-1">
                         {(c.cng_bill_url || c.cng_bill_file) ? (
                           <button
-                            onClick={() => setPreviewDoc({ title: 'CNG Bill', url: c.cng_bill_url || c.cng_bill_file })}
+                            onClick={() => setPreviewDoc({ title: 'CNG Bill', url: resolveDocUrl(c.cng_bill_url || c.cng_bill_file) })}
                             className="p-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 text-[10px] font-bold border border-amber-200"
                             title="View CNG Bill"
                           >
@@ -853,7 +862,7 @@ export default function Submissions() {
                         ) : null}
                         {(c.uber_screenshot_url || c.uber_screenshot_file) ? (
                           <button
-                            onClick={() => setPreviewDoc({ title: 'Uber Screenshot', url: c.uber_screenshot_url || c.uber_screenshot_file })}
+                            onClick={() => setPreviewDoc({ title: 'Uber Screenshot', url: resolveDocUrl(c.uber_screenshot_url || c.uber_screenshot_file) })}
                             className="p-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200"
                             title="View Uber Screenshot"
                           >
@@ -930,7 +939,17 @@ export default function Submissions() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
-              <h4 className="font-bold text-slate-900 text-sm">{previewDoc.title}</h4>
+              <div className="flex items-center space-x-2">
+                <h4 className="font-bold text-slate-900 text-sm">{previewDoc.title}</h4>
+                <a
+                  href={previewDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold underline"
+                >
+                  (Open original)
+                </a>
+              </div>
               <button
                 onClick={() => setPreviewDoc(null)}
                 className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 font-bold"
@@ -939,16 +958,24 @@ export default function Submissions() {
               </button>
             </div>
             <div className="p-4 flex flex-col items-center justify-center bg-slate-50 min-h-[250px]">
-              <img
-                src={previewDoc.url}
-                alt="Proof"
-                className="max-h-[70vh] rounded-lg object-contain shadow-sm"
-                onError={(e) => {
-                  e.target.style.display = 'none';
-                  const fallback = e.target.nextElementSibling;
-                  if (fallback) fallback.style.display = 'block';
-                }}
-              />
+              {previewDoc.url && previewDoc.url.toLowerCase().split('?')[0].endsWith('.pdf') ? (
+                <iframe
+                  src={previewDoc.url}
+                  title={previewDoc.title}
+                  className="w-full h-[65vh] rounded-lg border border-slate-200"
+                />
+              ) : (
+                <img
+                  src={previewDoc.url}
+                  alt="Proof"
+                  className="max-h-[70vh] rounded-lg object-contain shadow-sm"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    const fallback = e.target.nextElementSibling;
+                    if (fallback) fallback.style.display = 'block';
+                  }}
+                />
+              )}
               <div style={{ display: 'none' }} className="p-6 text-center text-slate-500">
                 <p className="text-xs font-semibold text-slate-600 mb-2">Image preview unavailable in embedded viewer</p>
                 <a
