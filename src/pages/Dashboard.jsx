@@ -55,7 +55,7 @@ export default function Dashboard() {
     return p;
   }, [filters]);
 
-  const { data: metrics, isLoading: loading, error: queryError } = useDashboard(cleanParams);
+  const { data: metrics, isLoading: loading, isFetching, error: queryError, refetch } = useDashboard(cleanParams);
   const { data: driversData } = useDrivers();
   const { data: vehiclesData } = useVehicles();
 
@@ -104,12 +104,37 @@ export default function Dashboard() {
     }).format(num);
   };
 
-  if (loading && !metrics) {
+  if ((loading || isFetching) && !metrics) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="text-sm font-semibold text-slate-500">Connecting to PostgreSQL fleet database...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (queryError && !metrics) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center space-y-4 max-w-sm">
+          <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-slate-900">Unable to load dashboard</h3>
+            <p className="text-sm text-slate-500 mt-1">
+              The server may be waking up from a cold start. This usually resolves in a few seconds.
+            </p>
+          </div>
+          <button
+            onClick={() => refetch()}
+            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-md transition-all active:scale-95"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Retry</span>
+          </button>
         </div>
       </div>
     );
